@@ -1412,6 +1412,206 @@ function resetConfig() {
   renderClusterTab();
   runComparison();
 }
+// ════════════════════════ TAB NAVIGATION ═════════════════════════════════════
+function activateTab(tab) {
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === tab);
+  });
+  document.querySelectorAll('.tab-panel').forEach(panel => {
+    panel.classList.toggle('active', panel.id === 'tab-' + tab);
+  });
+}
+
+function activateSubTab(subtab) {
+  document.querySelectorAll('#comparacao-sub-nav .tab-btn[data-subtab]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.subtab === subtab);
+  });
+  document.querySelectorAll('.subtab-panel').forEach(panel => {
+    const show = panel.id === 'subtab-' + subtab;
+    panel.style.display = show ? '' : 'none';
+    panel.classList.toggle('subtab-active', show);
+  });
+}
+
+// ════════════════════════ UPLOAD SUMMARY ═════════════════════════════════════
+function updateUploadSummary() {
+  const el = document.getElementById('upload-summary');
+  if (!el) return;
+  const n1 = S.fw1.filter(f => f.included).length;
+  const n2 = S.fw2.filter(f => f.included).length;
+  if (!n1 && !n2) { el.innerHTML = ''; return; }
+  const lbl1 = fw1Label || 'FW1';
+  const lbl2 = fw2Label || 'FW2';
+  el.innerHTML = `<div style="font-size:.76rem;color:var(--muted);margin-bottom:8px;display:flex;gap:12px;flex-wrap:wrap">
+    <span style="color:var(--accent1)">🔵 ${esc(lbl1)}: ${n1} ficheiro(s)</span>
+    <span style="color:var(--accent2)">🟠 ${esc(lbl2)}: ${n2} ficheiro(s)</span>
+  </div>`;
+}
+
+// ════════════════════════ EVOL STATS (stub) ══════════════════════════════════
+function computeAllEvolStats() {
+  const root = document.getElementById('evolstats-root');
+  const evo2 = document.getElementById('evo2-root');
+  if (root) {
+    const files1 = S.fw1.filter(f => f.included);
+    const files2 = S.fw2.filter(f => f.included);
+    if (!files1.length && !files2.length) {
+      root.innerHTML = '<div class="empty"><div class="ei">📊</div>Carrega ficheiros CSV para ver a evolução</div>';
+      if (evo2) evo2.innerHTML = '';
+      return;
+    }
+    const inds = getAllIndicators().filter(h => !isTs(h));
+    if (!inds.length) { root.innerHTML = '<div class="empty"><div class="ei">📊</div>Sem indicadores numéricos</div>'; return; }
+    const cards = inds.map(ind => {
+      const get = (files) => files.flatMap(f => {
+        const tsCol = getTsCol(f);
+        if (!tsCol || !f.headers.includes(ind)) return [];
+        return f.rows
+          .filter(r => isEpochMs(r[tsCol]) && r[ind] != null && !isNaN(Number(r[ind])))
+          .sort((a, b) => Number(a[tsCol]) - Number(b[tsCol]))
+          .map(r => ({ x: Number(r[tsCol]), y: Number(r[ind]) }));
+      });
+      const d1 = get(files1);
+      const d2 = get(files2);
+      if (!d1.length && !d2.length) return '';
+      const canvasId = 'evo-' + ind.replace(/[^a-zA-Z0-9]/g, '_');
+      setTimeout(() => {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const datasets = [];
+        if (d1.length) datasets.push({ label: fw1Label || 'FW1', data: d1, borderColor: '#4f8ef7', backgroundColor: 'rgba(79,142,247,.1)', tension: 0.2, pointRadius: 2 });
+        if (d2.length) datasets.push({ label: fw2Label || 'FW2', data: d2, borderColor: '#f7954f', backgroundColor: 'rgba(247,149,79,.1)', tension: 0.2, pointRadius: 2 });
+        new Chart(canvas, { type: 'line', data: { datasets },
+          options: { responsive: true, maintainAspectRatio: false,
+            scales: { x: { type: 'linear', ticks: { color: '#7a849a', callback: v => new Date(v).toLocaleDateString('pt-PT') } }, y: { ticks: { color: '#7a849a' } } },
+            plugins: { legend: { labels: { color: '#dde3f0', font: { size: 11 } } } }
+          }
+        });
+      }, 50);
+      return `<div class="card" style="margin-bottom:14px"><div class="card-title">${esc(ind)}</div><div style="height:180px"><canvas id="${canvasId}"></canvas></div></div>`;
+    }).filter(Boolean).join('');
+    root.innerHTML = cards || '<div class="empty"><div class="ei">📊</div>Sem dados temporais nos ficheiros carregados</div>';
+    if (evo2) evo2.innerHTML = root.innerHTML;
+  }
+}
+
+// ════════════════════════ SAVE / LOAD ANALYSIS ═══════════════════════════════
+function showSaveAnalysisDialog() {
+  const ov = document.getElementById('save-analysis-overlay');
+  if (ov) { ov.style.display = 'flex'; document.getElementById('analysis-name-inp').focus(); }
+}
+function doSaveAnalysis() {
+  const nameInp = document.getElementById('analysis-name-inp');
+  const name = nameInp ? nameInp.value.trim() : '';
+  if (!name) { alert('Introduz um nome para a análise.'); return; }
+  const analyses = JSON.parse(localStorage.getItem('fw-analyses-list') || '[]');
+  const entry = {
+    id: Date.now(),
+    name,
+    date: new Date().toLocaleString('pt-PT'),
+    cfg: JSON.parse(JSON.stringify(CFG)),
+    fw1Label, fw2Label, unitsUpgrade, unitsControl,
+    globalDateFrom, globalDateTo,
+    datasets: {
+      fw1: S.fw1.map(f => ({ name: f.name, headers: f.headers, rows: f.rows, included: f.included })),
+      fw2: S.fw2.map(f => ({ name: f.name, headers: f.headers, rows: f.rows, included: f.included })),
+    }
+  };
+  analyses.unshift(entry);
+  localStorage.setItem('fw-analyses-list', JSON.stringify(analyses));
+  document.getElementById('save-analysis-overlay').style.display = 'none';
+  if (nameInp) nameInp.value = '';
+  alert('Análise guardada: ' + name);
+}
+function showLoadAnalysisPanel() {
+  const ov = document.getElementById('load-analysis-overlay');
+  if (!ov) return;
+  const analyses = JSON.parse(localStorage.getItem('fw-analyses-list') || '[]');
+  const list = document.getElementById('saved-analyses-list');
+  if (!analyses.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:.82rem;padding:10px 0">Nenhuma análise guardada.</div>';
+  } else {
+    list.innerHTML = analyses.map(a => `
+      <div class="saved-item">
+        <div class="si-name" title="${esc(a.name)}">${esc(a.name)}</div>
+        <div class="si-date">${esc(a.date)}</div>
+        <button class="btn" style="padding:2px 10px;font-size:.74rem" onclick="loadAnalysis(${a.id})">Carregar</button>
+        <button class="remove" onclick="deleteAnalysis(${a.id})" title="Apagar">\u2715</button>
+      </div>`).join('');
+  }
+  ov.style.display = 'flex';
+}
+function loadAnalysis(id) {
+  const analyses = JSON.parse(localStorage.getItem('fw-analyses-list') || '[]');
+  const entry = analyses.find(a => a.id === id);
+  if (!entry) return;
+  CFG = entry.cfg;
+  saveCFG();
+  fw1Label = entry.fw1Label || '';
+  fw2Label = entry.fw2Label || '';
+  unitsUpgrade = entry.unitsUpgrade || null;
+  unitsControl = entry.unitsControl || null;
+  globalDateFrom = entry.globalDateFrom || null;
+  globalDateTo   = entry.globalDateTo   || null;
+  S.fw1 = (entry.datasets?.fw1 || []).map(f => ({ ...f, averages: computeAvg(f.headers, f.rows) }));
+  S.fw2 = (entry.datasets?.fw2 || []).map(f => ({ ...f, averages: computeAvg(f.headers, f.rows) }));
+  document.getElementById('load-analysis-overlay').style.display = 'none';
+  renderLists();
+  refreshAll();
+  alert('Análise carregada: ' + entry.name);
+}
+function deleteAnalysis(id) {
+  let analyses = JSON.parse(localStorage.getItem('fw-analyses-list') || '[]');
+  analyses = analyses.filter(a => a.id !== id);
+  localStorage.setItem('fw-analyses-list', JSON.stringify(analyses));
+  showLoadAnalysisPanel();
+}
+
+// ════════════════════════ SAVE / LOAD DATASET ════════════════════════════════
+function saveDataset(fw) {
+  const files = S[fw];
+  if (!files.length) { alert('Nenhum ficheiro para guardar.'); return; }
+  const label = fw === 'fw1' ? (fw1Label || 'FW1') : (fw2Label || 'FW2');
+  const key = 'fw-saved-datasets';
+  const saved = JSON.parse(localStorage.getItem(key) || '[]');
+  saved.unshift({ id: Date.now(), fw, label, date: new Date().toLocaleString('pt-PT'), files: files.map(f => ({ name: f.name, headers: f.headers, rows: f.rows })) });
+  localStorage.setItem(key, JSON.stringify(saved));
+  alert('Firmware guardado: ' + label);
+}
+function showFWSavedPanel() {
+  const ov = document.getElementById('fw-saved-overlay');
+  if (!ov) return;
+  const saved = JSON.parse(localStorage.getItem('fw-saved-datasets') || '[]');
+  const list = document.getElementById('fw-saved-list');
+  if (!saved.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:.82rem;padding:10px 0">Nenhum firmware guardado.</div>';
+  } else {
+    list.innerHTML = saved.map(d => `
+      <div class="saved-item">
+        <div class="si-name">${esc(d.label)} <span style="color:var(--muted)">(${d.fw})</span></div>
+        <div class="si-date">${esc(d.date)}</div>
+        <button class="btn" style="padding:2px 10px;font-size:.74rem" onclick="loadSavedDataset(${d.id})">Carregar</button>
+        <button class="remove" onclick="deleteSavedDataset(${d.id})">\u2715</button>
+      </div>`).join('');
+  }
+  ov.style.display = 'flex';
+}
+function loadSavedDataset(id) {
+  const saved = JSON.parse(localStorage.getItem('fw-saved-datasets') || '[]');
+  const entry = saved.find(d => d.id === id);
+  if (!entry) return;
+  S[entry.fw] = entry.files.map(f => ({ ...f, averages: computeAvg(f.headers, f.rows), included: true }));
+  document.getElementById('fw-saved-overlay').style.display = 'none';
+  renderLists();
+  refreshAll();
+}
+function deleteSavedDataset(id) {
+  let saved = JSON.parse(localStorage.getItem('fw-saved-datasets') || '[]');
+  saved = saved.filter(d => d.id !== id);
+  localStorage.setItem('fw-saved-datasets', JSON.stringify(saved));
+  showFWSavedPanel();
+}
+
 // Delegated settings events
 document.addEventListener('change', e => {
   if (e.target.matches('#new-cluster-inp')) return;
@@ -1568,3 +1768,46 @@ ${clNames.length ? `<h2>Clusters</h2>${clustersHtml}` : ''}
     setTimeout(() => w.print(), 400);
   }
 }
+
+// ════════════════════════ INIT ════════════════════════════════════════════════
+(function init() {
+  // Tab navigation
+  document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+    btn.addEventListener('click', () => activateTab(btn.dataset.tab));
+  });
+
+  // File inputs
+  function setupInput(id, fw) {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('change', () => { loadFiles(el.files, fw); el.value = ''; });
+  }
+  setupInput('inp-fw1', 'fw1');
+  setupInput('inp-fw2', 'fw2');
+  setupInput('inp-fw1-tab', 'fw1');
+  setupInput('inp-fw2-tab', 'fw2');
+
+  // Drop zones
+  function setupDrop(id, fw) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('dragover',  e => { e.preventDefault(); el.classList.add('drag-over'); });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      const files = e.dataTransfer.files;
+      if (files.length) loadFiles(files, fw);
+    });
+  }
+  setupDrop('drop1',     'fw1');
+  setupDrop('drop2',     'fw2');
+  setupDrop('drop1-tab', 'fw1');
+  setupDrop('drop2-tab', 'fw2');
+
+  // Initial render
+  renderSettings();
+  renderClusterTab();
+})();
+</script>
+</body>
+</html>

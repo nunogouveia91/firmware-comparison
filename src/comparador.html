@@ -555,6 +555,21 @@ function isEpochMs(v) {
   return !isNaN(n) && n > 9e11 && n < 5e12;
 }
 
+// Parse any timestamp value to epoch ms — handles epoch numbers, ISO strings,
+// and PT locale format "DD/MM/YYYY, HH:MM" produced by Kibana exports.
+function parseTs(v) {
+  if (v == null || v === '') return NaN;
+  const n = Number(v);
+  if (!isNaN(n) && n > 9e11 && n < 5e12) return n;
+  // Try native Date parse (works for ISO 8601 and many locale-neutral formats)
+  const d = Date.parse(v);
+  if (!isNaN(d)) return d;
+  // DD/MM/YYYY[, ]HH:MM[:SS] — PT/Kibana locale
+  const m = String(v).match(/^(\d{2})\/(\d{2})\/(\d{4})[,\s]+(\d{2}):(\d{2})/);
+  if (m) return Date.parse(`${m[3]}-${m[2]}-${m[1]}T${m[4]}:${m[5]}`);
+  return NaN;
+}
+
 // Returns the timestamp column for a file — by name first, then by content (epoch ms detection).
 // Caches the result on the file object to avoid repeated scans.
 function getTsCol(f) {
@@ -983,7 +998,7 @@ function computeIndicatorTypes() {
   function fileGranularity(f) {
     const tsCol = getTsCol(f);
     if (!tsCol || f.rows.length < 2) return null;
-    const ts = f.rows.map(r => Number(r[tsCol])).filter(t => !isNaN(t)).sort((a, b) => a - b);
+    const ts = f.rows.map(r => parseTs(r[tsCol])).filter(t => !isNaN(t)).sort((a, b) => a - b);
     if (ts.length < 2) return null;
     const deltas = [];
     for (let i = 1; i < ts.length; i++) { const d = ts[i] - ts[i-1]; if (d > 0) deltas.push(d); }

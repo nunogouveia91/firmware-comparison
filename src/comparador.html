@@ -871,20 +871,8 @@ function updateDataView(fw, idx) {
   // Hide avg row when file has 1 row (avg = data, pointless) or all non-ts
   // visible columns are accumulators (monotonically non-decreasing).
   const nonTsCols = visibleHeaders.filter(h => h !== tsCol);
-  const isColAcc = col => {
-    if (indicatorTypes[col] === 'acc') return true;
-    // Per-file monotonic check (handles columns not in global indicatorTypes)
-    if (!tsCol || f.rows.length < 2) return true;
-    const sorted = f.rows
-      .filter(r => isEpochMs(r[tsCol]) && r[col] != null && !isNaN(Number(r[col])))
-      .sort((a, b) => Number(a[tsCol]) - Number(b[tsCol]));
-    if (sorted.length < 2) return true;
-    let inc = 0;
-    for (let i = 1; i < sorted.length; i++) {
-      if (Number(sorted[i][col]) >= Number(sorted[i-1][col])) inc++;
-    }
-    return (inc / (sorted.length - 1)) >= 0.85;
-  };
+  // Show avg row only when there's temporal data (not accumulative, not single row)
+  const isColAcc = col => indicatorTypes[col] === 'acc' || !tsCol || f.rows.length < 2;
   const allAcc = f.rows.length <= 1 || (nonTsCols.length > 0 && nonTsCols.every(isColAcc));
   const avgRowHtml = allAcc ? '' : `<tr class="avg-row" title="Médias">${avgCells}</tr>`;
 
@@ -991,10 +979,10 @@ function computeIndicatorTypes() {
   indicatorTypes = {};
   if (!allFiles.length) return;
 
-  // Compute timestamp granularity per file (day / hour / null)
+  // Compute timestamp granularity per file: 'day', 'hour', or null
   function fileGranularity(f) {
     const tsCol = getTsCol(f);
-    if (!tsCol) return null;
+    if (!tsCol || f.rows.length < 2) return null;
     const ts = f.rows.map(r => Number(r[tsCol])).filter(t => !isNaN(t)).sort((a, b) => a - b);
     if (ts.length < 2) return null;
     const deltas = [];
@@ -1002,46 +990,36 @@ function computeIndicatorTypes() {
     if (!deltas.length) return null;
     deltas.sort((a, b) => a - b);
     const median = deltas[Math.floor(deltas.length / 2)];
-    if (median >= 43200000 && median <= 172800000) return 'day';   // ~12 h to ~2 d
-    if (median >= 1800000  && median <= 7200000)   return 'hour';  // ~30 min to ~2 h
-    return null;
+    if (median >= 43200000) return 'day';   // >= ~12h  → day-level
+    if (median >= 1800000)  return 'hour';  // >= ~30min → hour-level
+    return 'hour'; // sub-30min also treated as hour
   }
   const fileGran = allFiles.map(fileGranularity);
 
   const allInds = new Set();
   allFiles.forEach(f => f.headers.filter(h => !isTs(h)).forEach(h => allInds.add(h)));
+
   allInds.forEach(ind => {
-    let total = 0, inc = 0;
     const granSet = new Set();
+    let hasTemporal = false;
+
     allFiles.forEach((f, fi) => {
+      if (!f.headers.includes(ind)) return;
       const tsCol = getTsCol(f);
-      if (!tsCol) return;
-      if (f.headers.includes(ind) && fileGran[fi]) granSet.add(fileGran[fi]);
-      const sorted = f.rows
-        .filter(r => r[tsCol] != null && isEpochMs(r[tsCol]) && r[ind] != null)
-        .sort((a, b) => Number(a[tsCol]) - Number(b[tsCol]));
-      for (let i = 1; i < sorted.length; i++) {
-        const prev = Number(sorted[i-1][ind]), curr = Number(sorted[i][ind]);
-        if (isNaN(prev) || isNaN(curr)) continue;
-        total++;
-        if (curr >= prev) inc++;
-      }
+      // Temporal = has a timestamp column AND more than 1 row
+      if (!tsCol || f.rows.length < 2) return;
+      hasTemporal = true;
+      if (fileGran[fi]) granSet.add(fileGran[fi]);
     });
-    let type;
-    if (total >= 3) {
-      type = (inc / total) >= 0.85 ? 'acc' : 'avg';
+
+    if (!hasTemporal) {
+      // No time reference → accumulative (single snapshot)
+      indicatorTypes[ind] = 'acc';
+    } else if (granSet.has('hour') && !granSet.has('day')) {
+      indicatorTypes[ind] = 'avg-hour';
     } else {
-      const allVals = allFiles.flatMap(f => f.rows.map(r => r[ind]).filter(v => v != null && !isNaN(Number(v))));
-      if (allVals.length === 0) return;
-      type = allVals.every(v => Number(v) % 1 === 0) ? 'acc' : 'avg';
+      indicatorTypes[ind] = 'avg-day';
     }
-    // Refine avg into avg-day / avg-hour
-    if (type === 'avg') {
-      if (granSet.has('day') && !granSet.has('hour')) type = 'avg-day';
-      else if (granSet.has('hour') && !granSet.has('day')) type = 'avg-hour';
-      else if (granSet.size > 0) type = 'avg-day'; // mixed: default to day
-    }
-    indicatorTypes[ind] = type;
   });
 }
 
@@ -1051,7 +1029,7 @@ function typeTag(h) {
   if (t === 'acc')      return `<span class="ind-type-acc">acum.</span>`;
   if (t === 'avg-day')  return `<span class="ind-type-avg">méd. dia</span>`;
   if (t === 'avg-hour') return `<span class="ind-type-avg">méd. hora</span>`;
-  return `<span class="ind-type-avg">méd.</span>`;
+  return '';
 }
 
 function runComparison() {

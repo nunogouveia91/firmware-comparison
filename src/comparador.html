@@ -155,7 +155,6 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
   </div>
   <div style="display:flex;gap:8px;flex-shrink:0;align-items:center">
     <button class="btn" onclick="generateReport()" style="padding:5px 14px;font-size:.8rem;white-space:nowrap">&#128196; Relatório</button>
-    <button class="btn" onclick="showSaveAnalysisDialog()" style="padding:5px 12px;font-size:.8rem;white-space:nowrap">&#128190; Guardar Análise</button>
   </div>
 </header>
 
@@ -276,6 +275,9 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
         </div>
         <div class="file-list" id="list-fw2-tab"></div>
       </div>
+    </div>
+    <div style="margin-top:12px">
+      <button class="btn" onclick="showSaveAnalysisDialog()" style="padding:6px 16px;font-size:.82rem">&#128190; Guardar Análise</button>
     </div>
   </div>
 </div>
@@ -971,14 +973,7 @@ function refreshAll() {
 
   if (hasComp) runComparison();
 
-  // Auto-navigate to Comparação Direta when both FWs have files and user is on Carregar Dados tab
-  if (hasComp) {
-    const onUpload = document.querySelector('header .tabs .tab-btn[data-tab="upload"]')?.classList.contains('active');
-    if (onUpload) {
-      activateTab('comparacao');
-      activateSubTab('compare');
-    }
-  }
+
 }
 
 function show(id, vis) {

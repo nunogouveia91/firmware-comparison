@@ -237,8 +237,10 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
         <button onclick="showFWSavedPanel()" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">💾 Firmwares Guardados</button>
       </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:8px">
         <button onclick="showLoadAnalysisPanel()" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">📂 Análises Guardadas</button>
+        <span style="color:var(--border)">|</span>
+        <button onclick="showSaveAnalysisDialog()" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">💾 Guardar Análise</button>
       </div>
     </div>
     <!-- file panels -->
@@ -275,9 +277,6 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
         </div>
         <div class="file-list" id="list-fw2-tab"></div>
       </div>
-    </div>
-    <div style="margin-top:12px">
-      <button class="btn" onclick="showSaveAnalysisDialog()" style="padding:6px 16px;font-size:.82rem">&#128190; Guardar Análise</button>
     </div>
   </div>
 </div>

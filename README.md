@@ -1,55 +1,62 @@
-# Firmware Comparison & Toolbox
+# Firmware Comparator
 
-A Flask web application that bundles three internal tools into a single lightweight server:
-
-1. **Budget Tracker** – personal expense tracking with multi-wallet and category support  
-2. **Firmware Comparator** – side-by-side comparison of two firmware CSV exports  
-3. **Elasticsearch Export** – query an Elasticsearch / Kibana cluster and download results as CSV, JSON or NDJSON  
+A single-page web application for comparing two sets of firmware CSV exports side by side. Built with Flask (Python) as a lightweight local server.
 
 ---
 
 ## Features
 
-### 💰 Budget Tracker (`/budget`)
-- Device-based user identity (no login required)
-- Multiple named wallets with custom colours
-- Expense categories with emoji icons, grouped as *basic*, *free* or *saving*
-- Month-by-month filtering and per-wallet filtering
-- Running totals and spending breakdown charts
-- Full CRUD for expenses, wallets and categories
-- Data stored locally in a SQLite database (`budget.db`)
+### 📂 Carregar Dados
+- Upload multiple CSV files per firmware group (Upgrade vs Control)
+- Drag-and-drop or file picker support
+- Name each firmware group with a custom label
+- Define number of units per group (used for the "desprezável" filter)
+- Save and reload firmware datasets across sessions
+- Save and load full analyses (data + config + clusters + thresholds)
 
-### 📊 Firmware Comparator (`/comparador`)
-- Upload two sets of CSV files (Firmware A vs Firmware B)
-- Automatic detection of regressions (🔴), improvements (🟢) and warnings (🟡)
-- Summary statistics and per-indicator averages
-- Interactive Chart.js visualisations
-- Configurable thresholds and sorting
+### ⚖️ Comparação Direta
+- Side-by-side comparison of all indicators between FW1 and FW2
+- Automatic classification per indicator:
+  - 🔴 **Blocker / Major** — degradation above configurable thresholds
+  - 🟡 **Atenção** — small degradation
+  - 🟢 **Good** — improvement beyond configurable threshold
+  - ✅ **OK** — within acceptable range
+  - **S/D** — no data in one or both groups
+- Overall Score and Cluster Score (weighted)
+- Filter by: Principais Diferenças, Falhas, Melhorias, Sem Dados, Todos
+- Filter by cluster
+- "Desprezável" auto-hide filter: hides indicators where both values are below a threshold (requires units to be set)
+- Indicator type tags: **acum.** (no temporal reference), **méd. dia** (daily granularity), **méd. hora** (hourly granularity)
+- Hide/show individual rows
+- Click any indicator to inspect its raw data
 
-### 🔍 Elasticsearch Export (`/elastic`)
-- Connect to any Elasticsearch / OpenSearch cluster (HTTP or HTTPS)
-- Basic authentication or API-key authentication
-- Optional SSL certificate verification bypass
-- Date-range and query-string filtering
-- Preview results before downloading
-- Scroll-API-based full export (up to 500 000 documents)
-- Download as **CSV** (Excel-compatible UTF-8 BOM), **JSON**, or **NDJSON**
-- Nested fields are automatically flattened with dot-notation keys
+### 📈 Comparação Temporal
+- Time-series chart comparison between FW1 and FW2 per indicator
+- Supports epoch ms timestamps and PT locale date strings (DD/MM/YYYY, HH:MM)
+
+### 📊 Evolução
+- Per-indicator evolution charts across the loaded files
+
+### 📋 Dados
+- Browse raw CSV data per file
+- Average row shown for non-accumulative indicators
+- Search indicators by name
+- Toggle visibility of empty columns
+
+### ⚙️ Definições
+- **Limiares** — configure fail/warning/improvement percentage thresholds and labels; configure "desprezável" thresholds for accumulative and average indicators
+- **Clusters** — group indicators into named clusters with icons and weights; export/import cluster config as JSON
+- **Dados** — manage saved firmware datasets and analyses
+
+### 📄 Relatório
+- Generate a full printable HTML report with all indicators, cluster scores and summary statistics
 
 ---
 
 ## Requirements
 
 - Python 3.9+
-- pip packages listed in `requirements.txt`:
-
-```
-flask>=2.3
-requests>=2.31
-urllib3>=2.0
-```
-
-Install dependencies:
+- Flask
 
 ```bash
 pip install -r requirements.txt
@@ -57,19 +64,13 @@ pip install -r requirements.txt
 
 ---
 
-## Running the application
+## Running
 
 ```bash
 python app.py
 ```
 
-The server starts on **http://localhost:5000** and redirects `/` to `/budget`.
-
-| Path | Description |
-|------|-------------|
-| `/budget` | Budget Tracker |
-| `/comparador` | Firmware Comparator |
-| `/elastic` | Elasticsearch Export |
+Opens on **http://localhost:5000** (or via the Codespace port forwarding URL).
 
 ---
 
@@ -77,64 +78,8 @@ The server starts on **http://localhost:5000** and redirects `/` to `/budget`.
 
 ```
 .
-├── app.py              # Flask application (routes + SQLite helpers)
-├── requirements.txt    # Python dependencies
-├── budget.db           # SQLite database (auto-created on first run)
+├── app.py              # Flask server (serves static files only)
+├── requirements.txt    # Python dependencies (flask only)
 └── src/
-    ├── budget.html     # Budget Tracker UI (single-page)
-    ├── comparador.html # Firmware Comparator UI (single-page)
-    └── elastic.html    # Elasticsearch Export UI (single-page)
+    └── comparador.html # Full application (single-page, no backend required)
 ```
-
----
-
-## REST API reference
-
-### Users
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/users/<device_id>` | Get user by device ID |
-| `POST` | `/api/users` | Create user (idempotent) |
-| `PUT` | `/api/users/<id>` | Update user name |
-
-### Wallets
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/wallets?user_id=` | List wallets for a user |
-| `POST` | `/api/wallets` | Create wallet |
-| `DELETE` | `/api/wallets/<id>` | Delete wallet |
-
-### Categories
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/categories?user_id=` | List categories for a user |
-| `POST` | `/api/categories` | Create category |
-| `DELETE` | `/api/categories/<id>` | Delete category |
-
-### Expenses
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/expenses?user_id=&wallet_id=&month=` | List expenses (filterable) |
-| `POST` | `/api/expenses` | Create expense |
-| `DELETE` | `/api/expenses/<id>` | Delete expense |
-
-### Elasticsearch
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/elastic/test` | Test cluster connectivity |
-| `POST` | `/api/elastic/indices` | List available indices |
-| `POST` | `/api/elastic/query` | Preview up to 5 hits |
-| `POST` | `/api/elastic/download` | Full export (scroll API) |
-
----
-
-## Notes
-
-- The SQLite database file `budget.db` is created automatically in the same directory as `app.py` on first run.
-- The Elasticsearch export uses the [Scroll API](https://www.elastic.co/guide/en/elasticsearch/reference/current/scroll-api.html) and cleans up the scroll context after each export.
-- All UI pages are self-contained single-page HTML files served from the `src/` folder.

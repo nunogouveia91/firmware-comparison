@@ -1105,7 +1105,8 @@ function runComparison() {
   condBRows = new Set();
   const limB = CFG.condBThreshold ?? 3;
   rows.forEach(r => {
-    if (indicatorTypes[r.h] !== 'avg') return;
+    const t = indicatorTypes[r.h];
+    if (t !== 'avg' && t !== 'avg-day' && t !== 'avg-hour') return;
     if (r.v1 !== null && r.v2 !== null && Math.abs(r.v1) <= limB && Math.abs(r.v2) <= limB) condBRows.add(r.h);
   });
 

@@ -1089,18 +1089,16 @@ function runComparison() {
   const warns   = rows.filter(r => r.cls.level === 'warn');
   const nd      = rows.filter(r => r.cls.level === 'nd');
 
-  // Limiar desprezável acumulativo: ambos ≤ condAThreshold% das unidades (ou valor absoluto se sem unidades)
+  // Limiar desprezável acumulativo: só aplica se ambas as unidades estiverem definidas
   condARows = new Set();
-  {
+  if (unitsUpgrade != null && unitsControl != null) {
     const frac = (CFG.condAThreshold ?? 1) / 100;
-    const limU = unitsUpgrade != null ? unitsUpgrade * frac : null;
-    const limC = unitsControl != null ? unitsControl * frac : null;
+    const limU = unitsUpgrade * frac;
+    const limC = unitsControl * frac;
     rows.forEach(r => {
       if (indicatorTypes[r.h] !== 'acc') return;
       if (r.v1 === null || r.v2 === null) return;
-      const v1ok = limU != null ? Math.abs(r.v1) <= limU : true;
-      const v2ok = limC != null ? Math.abs(r.v2) <= limC : true;
-      if (v1ok && v2ok) condARows.add(r.h);
+      if (Math.abs(r.v1) <= limU && Math.abs(r.v2) <= limC) condARows.add(r.h);
     });
   }
   // Limiar desprezável média: ambos ≤ condBThreshold (valor absoluto)

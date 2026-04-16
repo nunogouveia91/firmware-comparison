@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Comparador de Firmware</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <style>
 :root {
   --bg:#0f1117; --surface:#181b27; --surface2:#1f2336; --border:#2a2f4a;
@@ -226,14 +227,14 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
     <!-- units + action buttons row -->
     <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px">
-        <span style="color:var(--accent1);font-size:.85rem;font-weight:700">🔵 Upgrade:</span>
-        <input type="number" id="units-upgrade-tab" min="1" style="width:80px;font-size:.9rem;font-weight:600" placeholder="uds"
-          oninput="unitsUpgrade=this.value?+this.value:null;document.getElementById('units-upgrade').value=this.value;updateUploadSummary();recomputeCondA()">
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px">
-        <span style="color:var(--accent2);font-size:.85rem;font-weight:700">🟠 Control:</span>
+        <span style="color:var(--accent2);font-size:.85rem;font-weight:700">🟠 Control / Antes:</span>
         <input type="number" id="units-control-tab" min="1" style="width:80px;font-size:.9rem;font-weight:600" placeholder="uds"
           oninput="unitsControl=this.value?+this.value:null;document.getElementById('units-control').value=this.value;updateUploadSummary();recomputeCondA()">
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px">
+        <span style="color:var(--accent1);font-size:.85rem;font-weight:700">🔵 Upgrade / Depois:</span>
+        <input type="number" id="units-upgrade-tab" min="1" style="width:80px;font-size:.9rem;font-weight:600" placeholder="uds"
+          oninput="unitsUpgrade=this.value?+this.value:null;document.getElementById('units-upgrade').value=this.value;updateUploadSummary();recomputeCondA()">
       </div>
       <div style="flex:1"></div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
@@ -248,30 +249,14 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
     </div>
     <!-- file panels -->
     <div class="upload-grid">
-      <div class="fw-panel fw1">
-        <h2 style="display:flex;align-items:center;gap:6px">🔵
-          <input type="text" id="fw1-label-tab" placeholder="Firmware 1 — Upgrade"
-            style="background:transparent;border:none;border-bottom:1px dashed var(--border);font:inherit;color:inherit;padding:0 4px;flex:1;min-width:0;font-size:.9rem"
-            oninput="fw1Label=this.value;document.getElementById('fw1-label').value=this.value;updateFWHeaders()">
-          <button class="btn" style="padding:3px 9px;font-size:.72rem;flex-shrink:0" onclick="saveDataset('fw1')">+ Guardar</button>
-        </h2>
-        <div class="fw-hint">Ficheiros CSV do firmware em avaliação</div>
-        <div class="drop-zone" id="drop1-tab">
-          <div class="di">📂</div>
-          <p>Arrastar .csv aqui</p>
-          <p>ou clica para selecionar (múltiplos)</p>
-          <input type="file" id="inp-fw1-tab" accept=".csv,.txt" multiple>
-        </div>
-        <div class="file-list" id="list-fw1-tab"></div>
-      </div>
       <div class="fw-panel fw2">
         <h2 style="display:flex;align-items:center;gap:6px">🟠
-          <input type="text" id="fw2-label-tab" placeholder="Firmware 2 — Control"
+          <input type="text" id="fw2-label-tab" placeholder="Firmware A — Control / Antes"
             style="background:transparent;border:none;border-bottom:1px dashed var(--border);font:inherit;color:inherit;padding:0 4px;flex:1;min-width:0;font-size:.9rem"
             oninput="fw2Label=this.value;document.getElementById('fw2-label').value=this.value;updateFWHeaders()">
           <button class="btn" style="padding:3px 9px;font-size:.72rem;flex-shrink:0" onclick="saveDataset('fw2')">+ Guardar</button>
         </h2>
-        <div class="fw-hint">Ficheiros CSV do firmware de referência</div>
+        <div class="fw-hint">Ficheiros CSV do firmware de referência / período antes</div>
         <div class="drop-zone" id="drop2-tab">
           <div class="di">📂</div>
           <p>Arrastar .csv aqui</p>
@@ -279,6 +264,22 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
           <input type="file" id="inp-fw2-tab" accept=".csv,.txt" multiple>
         </div>
         <div class="file-list" id="list-fw2-tab"></div>
+      </div>
+      <div class="fw-panel fw1">
+        <h2 style="display:flex;align-items:center;gap:6px">🔵
+          <input type="text" id="fw1-label-tab" placeholder="Firmware B — Upgrade / Depois"
+            style="background:transparent;border:none;border-bottom:1px dashed var(--border);font:inherit;color:inherit;padding:0 4px;flex:1;min-width:0;font-size:.9rem"
+            oninput="fw1Label=this.value;document.getElementById('fw1-label').value=this.value;updateFWHeaders()">
+          <button class="btn" style="padding:3px 9px;font-size:.72rem;flex-shrink:0" onclick="saveDataset('fw1')">+ Guardar</button>
+        </h2>
+        <div class="fw-hint">Ficheiros CSV do firmware em avaliação / período depois</div>
+        <div class="drop-zone" id="drop1-tab">
+          <div class="di">📂</div>
+          <p>Arrastar .csv aqui</p>
+          <p>ou clica para selecionar (múltiplos)</p>
+          <input type="file" id="inp-fw1-tab" accept=".csv,.txt" multiple>
+        </div>
+        <div class="file-list" id="list-fw1-tab"></div>
       </div>
     </div>
   </div>
@@ -333,8 +334,8 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
           <table>
             <thead><tr>
               <th>Indicador</th>
-              <th id="cmp-th-fw1" style="color:var(--accent1)">FW1 — Upgrade</th>
-              <th id="cmp-th-fw2" style="color:var(--accent2)">FW2 — Control</th>
+              <th id="cmp-th-fw1" style="color:var(--accent1)">FW-B — Upgrade</th>
+              <th id="cmp-th-fw2" style="color:var(--accent2)">FW-A — Control</th>
               <th>Comparação</th>
               <th>Estado</th>
             </tr></thead>
@@ -502,8 +503,8 @@ let cmpView         = 'all';     // 'all' | 'fails' | 'improvs' | 'nd' | 'todos'
 let cmpClusterFilter = null;     // null = all clusters; string = filter to that cluster
 let globalDateFrom  = null;      // ms timestamp - applied to ALL views
 let globalDateTo    = null;      // ms timestamp - applied to ALL views
-let fw1Label        = '';        // custom name for FW1 group
-let fw2Label        = '';        // custom name for FW2 group
+let fw1Label        = '';        // custom name for FW-B group
+let fw2Label        = '';        // custom name for FW-A group
 let dataIndSearch   = '';        // indicator search query in Dados tab
 let condARows       = new Set(); // acc indicators hidden (both values ≤ threshold% of units)
 let condBRows       = new Set(); // avg indicators hidden (both values ≤ absolute threshold)
@@ -822,7 +823,7 @@ function updateDataIndSearch() {
     panel.innerHTML = `<div style="font-size:.8rem;color:var(--muted);margin-bottom:10px;padding:8px 12px;background:var(--surface2);border-radius:7px">🔍 Nenhum ficheiro contém um indicador com <em>${esc(dataIndSearch)}</em>.</div>`;
     return;
   }
-  const matchLabel = fw => fw === 'fw1' ? `<span style="color:var(--accent1)">🔵 ${esc(fw1Label || 'FW1')}</span>` : `<span style="color:var(--accent2)">🟠 ${esc(fw2Label || 'FW2')}</span>`;
+  const matchLabel = fw => fw === 'fw1' ? `<span style="color:var(--accent1)">🔵 ${esc(fw1Label || 'FW-B')}</span>` : `<span style="color:var(--accent2)">🟠 ${esc(fw2Label || 'FW-A')}</span>`;
   panel.innerHTML = `<div style="margin-bottom:12px;padding:10px 14px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)">
     <div style="font-size:.78rem;font-weight:700;margin-bottom:7px;color:var(--text)">🔍 Ficheiros com indicadores que contém <em style="color:var(--accent1)">${esc(dataIndSearch)}</em></div>
     <div style="display:flex;flex-direction:column;gap:5px">
@@ -1128,8 +1129,8 @@ function runComparison() {
 function renderCompareFiltered() { renderCmpView(); }
 
 function updateFWHeaders() {
-  const l1 = fw1Label.trim() || 'FW1 — Upgrade';
-  const l2 = fw2Label.trim() || 'FW2 — Control';
+  const l1 = fw1Label.trim() || 'FW-B — Upgrade';
+  const l2 = fw2Label.trim() || 'FW-A — Control';
   const t1 = document.getElementById('cmp-th-fw1');
   const t2 = document.getElementById('cmp-th-fw2');
   if (t1) t1.textContent = l1;
@@ -2155,8 +2156,8 @@ document.addEventListener('change', e => {
 function generateReport() {
   if (!lastRows.length) { alert('Corre primeiro uma comparação (carrega ficheiros nos dois grupos).'); return; }
 
-  const l1 = fw1Label.trim() || 'FW1 — Upgrade';
-  const l2 = fw2Label.trim() || 'FW2 — Control';
+  const l1 = fw1Label.trim() || 'FW-B — Upgrade';
+  const l2 = fw2Label.trim() || 'FW-A — Control';
   const fw1n = S.fw1.filter(f => f.included).map(f => f.name).join(', ') || '—';
   const fw2n = S.fw2.filter(f => f.included).map(f => f.name).join(', ') || '—';
 
@@ -2410,8 +2411,9 @@ ${sigImprovs.length ? `
 // EVOLUÇÃO 2 — implementação limpa, sem estado externo
 // ═══════════════════════════════════════════════════════════════════
 let evo2Interval          = 4;
-let evo2Metric            = 'delta';
+let evo2Metric            = 'values';
 let evo2ViewMode          = 'chart';
+let evo2AlignMode         = 'aligned'; // 'aligned' | 'separate'
 let evo2ClearPending      = false;
 let evo2SelectAllPending  = false;
 
@@ -2462,21 +2464,59 @@ function buildEvo2Data() {
 
   const fw1avg = avg('fw1');
   const fw2avg = avg('fw2');
+
+  // ── Detect temporal alignment ──
+  const ts1sorted = Object.keys(fw1avg).map(Number).sort((a, b) => a - b);
+  const ts2sorted = Object.keys(fw2avg).map(Number).sort((a, b) => a - b);
+  const ts1set = new Set(ts1sorted);
+  const overlap = ts2sorted.filter(t => ts1set.has(t)).length;
+  const overlapRatio = Math.min(ts1sorted.length, ts2sorted.length) > 0
+    ? overlap / Math.min(ts1sorted.length, ts2sorted.length) : 0;
+  // Misaligned: less than 20% of buckets coincide (different time periods)
+  const misaligned = (ts1sorted.length > 0 && ts2sorted.length > 0) && overlapRatio < 0.2;
+
+  // Always build aligned pairs (zip by relative position) — used for Δ% computation
+  const alignedLen = Math.min(ts1sorted.length, ts2sorted.length);
+  const alignedPairs = [];
+  for (let i = 0; i < alignedLen; i++) {
+    const offsetMs = i * bucketMs;
+    const h = offsetMs / 3600000;
+    const hStr = h === 0 ? '+0h' : (h % 24 === 0 ? `Dia ${Math.round(h/24)}` : `+${h.toFixed(0)}h`);
+    alignedPairs.push({ label: hStr, v1ts: ts1sorted[i], v2ts: ts2sorted[i] });
+  }
+
   const allTs  = [...new Set([...Object.keys(fw1avg), ...Object.keys(fw2avg)])].map(Number).sort((a, b) => a - b);
 
-  // Per-indicator overall delta (to filter: only inds with data in both)
+  // Per-indicator overall delta — use aligned pairs (position-based) for robustness
   const deltas = {};
+  function computeDelta(a1, a2) {
+    if (a1 === null && a2 === null) return null;
+    if (a1 === null) return null; // only FW-A has data — skip (single-FW shown elsewhere)
+    if (a2 === null) return null; // only FW-B has data — skip
+    if (a2 === 0 && a1 === 0) return 0;
+    if (a2 === 0) return a1 > 0 ? 999999 : -999999; // baseline was 0, use large sentinel
+    return ((a1 - a2) / Math.abs(a2)) * 100;
+  }
+  const indHasData1 = new Set(); // indicator exists in FW-B
+  const indHasData2 = new Set(); // indicator exists in FW-A
   [...allInds].forEach(ind => {
-    const v1s = Object.values(fw1avg).map(b => b[ind]).filter(v => v !== undefined);
-    const v2s = Object.values(fw2avg).map(b => b[ind]).filter(v => v !== undefined);
-    const a1  = v1s.length ? v1s.reduce((a, b) => a + b, 0) / v1s.length : null;
-    const a2  = v2s.length ? v2s.reduce((a, b) => a + b, 0) / v2s.length : null;
-    deltas[ind] = (a1 !== null && a2 !== null && a2 !== 0)
-      ? ((a1 - a2) / Math.abs(a2)) * 100 : null;
+    const v1vals = alignedPairs.length > 0
+      ? alignedPairs.map(p => (fw1avg[p.v1ts] || {})[ind]).filter(v => v !== undefined)
+      : Object.values(fw1avg).map(b => b[ind]).filter(v => v !== undefined);
+    const v2vals = alignedPairs.length > 0
+      ? alignedPairs.map(p => (fw2avg[p.v2ts] || {})[ind]).filter(v => v !== undefined)
+      : Object.values(fw2avg).map(b => b[ind]).filter(v => v !== undefined);
+    const a1 = v1vals.length ? v1vals.reduce((a, b) => a + b, 0) / v1vals.length : null;
+    const a2 = v2vals.length ? v2vals.reduce((a, b) => a + b, 0) / v2vals.length : null;
+    if (a1 !== null) indHasData1.add(ind);
+    if (a2 !== null) indHasData2.add(ind);
+    deltas[ind] = computeDelta(a1, a2);
   });
 
-  const availInds = [...allInds].filter(i => deltas[i] !== null).sort();
-  return { fw1avg, fw2avg, allTs, availInds, deltas };
+  // Include indicators that have data in BOTH FWs (delta may be 0, that's valid)
+  // Also include single-FW indicators (delta = null but still shown, sorted last)
+  const availInds = [...allInds].filter(i => indHasData1.has(i) || indHasData2.has(i)).sort();
+  return { fw1avg, fw2avg, allTs, availInds, deltas, misaligned, alignedPairs };
 }
 
 function renderEvo2() {
@@ -2495,7 +2535,16 @@ function renderEvo2() {
     return;
   }
 
-  const { fw1avg, fw2avg, allTs, availInds, deltas } = data;
+  const { fw1avg, fw2avg, allTs, availInds, deltas, misaligned, alignedPairs } = data;
+
+  // ── Sort indicators by |delta| descending (needed for first-render auto-select) ──
+  const sortedAvailInds = [...availInds].sort((a, b) => {
+    const da = deltas[a], db = deltas[b];
+    if (da === null && db === null) return 0;
+    if (da === null) return 1;
+    if (db === null) return -1;
+    return Math.abs(db) - Math.abs(da);
+  });
 
   // ── Read current checkbox selection (or use "all" on first render) ──
   const existingGrid = root.querySelector('#evo2-ind-grid');
@@ -2512,18 +2561,20 @@ function renderEvo2() {
       return cb ? cb.checked : true;
     });
   } else {
-    // First render — start with nothing selected
-    selInds = [];
+    // First render — auto-select the indicator with highest |delta|
+    const top = sortedAvailInds[0];
+    selInds = top ? [top] : [];
   }
   const selSet = new Set(selInds);
 
-  // ── Build indicator list HTML (sorted by |delta| descending) ──
-  const sortedAvailInds = [...availInds].sort((a, b) => Math.abs(deltas[b]) - Math.abs(deltas[a]));
+  // ── Build indicator list HTML ──
   const indHtml = sortedAvailInds.map(ind => {
     const pct = deltas[ind];
-    const cls = classify(pct);
+    const cls = pct !== null ? classify(pct) : { color: 'var(--muted)', label: '' };
     const col = cls.color || 'var(--muted)';
-    const pctStr = (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
+    const pctStr = pct === null ? 'N/D'
+      : Math.abs(pct) >= 9999 ? (pct > 0 ? '+∞' : '-∞')
+      : (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
     const checked = selSet.has(ind) ? 'checked' : '';
     return `<label class="ind-item">
       <input type="checkbox" class="evo2-chk" data-ind="${esc(ind)}" ${checked}>
@@ -2541,62 +2592,109 @@ function renderEvo2() {
   if (noData) {
     rightHtml = `<div class="card"><div style="color:var(--muted);font-size:.82rem;padding:30px;text-align:center">← Seleciona indicadores para ver a evolução</div></div>`;
   } else if (vm === 'chart') {
-    const labels = allTs.map(ts => new Date(ts).toLocaleString('pt-PT', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }));
+    const doAlign = evo2AlignMode === 'aligned';
     const EVO_C = ['#4f8ef7','#f7954f','#34d399','#f472b6','#a78bfa','#fbbf24','#38bdf8','#fb923c'];
-    const datasets = [];
-    selInds.forEach((ind, i) => {
-      const col = EVO_C[i % EVO_C.length];
-      if (evo2Metric === 'delta') {
+    let labels, datasets = [], numPeriods;
+
+    if (doAlign || evo2Metric === 'delta') {
+      // ── Aligned / Δ% mode: zip by position ──
+      labels = alignedPairs.map(p => p.label);
+      numPeriods = alignedPairs.length;
+      selInds.forEach((ind, i) => {
+        const col = EVO_C[i % EVO_C.length];
+        if (evo2Metric === 'delta') {
+          datasets.push({
+            label: ind + ' Δ%',
+            data: alignedPairs.map(p => {
+              const v1 = (fw1avg[p.v1ts] || {})[ind];
+              const v2 = (fw2avg[p.v2ts] || {})[ind];
+              if (v1 == null || v2 == null || v2 === 0) return null;
+              return +((v1 - v2) / Math.abs(v2) * 100).toFixed(2);
+            }),
+            borderColor: col, backgroundColor: col + '30',
+            pointRadius: 3, fill: false, tension: 0.3, spanGaps: false
+          });
+        } else {
+          datasets.push({
+            label: ind + ' FW-B',
+            data: alignedPairs.map(p => { const v = (fw1avg[p.v1ts] || {})[ind]; return v != null ? +v.toFixed(2) : null; }),
+            borderColor: col, backgroundColor: col + '20', pointRadius: 3, fill: false, tension: 0.3, spanGaps: false
+          });
+          datasets.push({
+            label: ind + ' FW-A',
+            data: alignedPairs.map(p => { const v = (fw2avg[p.v2ts] || {})[ind]; return v != null ? +v.toFixed(2) : null; }),
+            borderColor: col, backgroundColor: col + '20', pointRadius: 3, fill: false, tension: 0.3, spanGaps: false,
+            borderDash: [4, 3]
+          });
+        }
+      });
+    } else {
+      // ── Separate mode: real timestamps for each FW on a shared X axis ──
+      const fmt = ts => new Date(ts).toLocaleString('pt-PT', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      const ts1sorted = Object.keys(fw1avg).map(Number).sort((a,b) => a-b);
+      const ts2sorted = Object.keys(fw2avg).map(Number).sort((a,b) => a-b);
+      // Build merged sorted unique label list (each ts gets its own slot)
+      const allTsSep = [...new Set([...ts1sorted, ...ts2sorted])].sort((a,b) => a-b);
+      const labelMap = new Map(allTsSep.map((ts, i) => [ts, i]));
+      labels = allTsSep.map(fmt);
+      numPeriods = allTsSep.length;
+      selInds.forEach((ind, i) => {
+        const col = EVO_C[i % EVO_C.length];
+        const dataB = new Array(allTsSep.length).fill(null);
+        ts1sorted.forEach(ts => { const v = (fw1avg[ts] || {})[ind]; if (v != null) dataB[labelMap.get(ts)] = +v.toFixed(2); });
+        const dataA = new Array(allTsSep.length).fill(null);
+        ts2sorted.forEach(ts => { const v = (fw2avg[ts] || {})[ind]; if (v != null) dataA[labelMap.get(ts)] = +v.toFixed(2); });
         datasets.push({
-          label: ind + ' Δ%',
-          data: allTs.map(ts => {
-            const v1 = (fw1avg[ts] || {})[ind];
-            const v2 = (fw2avg[ts] || {})[ind];
-            if (v1 == null || v2 == null || v2 === 0) return null;
-            return +((v1 - v2) / Math.abs(v2) * 100).toFixed(2);
-          }),
-          borderColor: col, backgroundColor: col + '30',
-          pointRadius: 3, fill: false, tension: 0.3, spanGaps: false
-        });
-      } else {
-        datasets.push({
-          label: ind + ' FW1',
-          data: allTs.map(ts => { const v = (fw1avg[ts] || {})[ind]; return v != null ? +v.toFixed(2) : null; }),
+          label: ind + ' FW-B',
+          data: dataB,
           borderColor: col, backgroundColor: col + '20', pointRadius: 3, fill: false, tension: 0.3, spanGaps: false
         });
         datasets.push({
-          label: ind + ' FW2',
-          data: allTs.map(ts => { const v = (fw2avg[ts] || {})[ind]; return v != null ? +v.toFixed(2) : null; }),
+          label: ind + ' FW-A',
+          data: dataA,
           borderColor: col, backgroundColor: col + '20', pointRadius: 3, fill: false, tension: 0.3, spanGaps: false,
           borderDash: [4, 3]
         });
-      }
-    });
+      });
+    }
+    const alignNote = (misaligned && doAlign)
+      ? `<span style="font-size:.68rem;color:var(--warn);margin-left:6px" title="Períodos temporais diferentes — alinhados por posição relativa">⚠️ alinhado por posição</span>`
+      : '';
     rightHtml = `<div class="card" style="min-width:0">
       <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
         <span style="font-size:.74rem;color:var(--muted)">Métrica:</span>
+        <button class="btn-toggle${!metricDelta?' active-btn':''}" style="padding:3px 10px;font-size:.73rem"
+          onclick="evo2Metric='values';renderEvo2()">Valores FW-A/FW-B</button>
         <button class="btn-toggle${metricDelta?' active-btn':''}" style="padding:3px 10px;font-size:.73rem"
           onclick="evo2Metric='delta';renderEvo2()">Δ% variação</button>
-        <button class="btn-toggle${!metricDelta?' active-btn':''}" style="padding:3px 10px;font-size:.73rem"
-          onclick="evo2Metric='values';renderEvo2()">Valores FW1/FW2</button>
-        <span style="font-size:.72rem;color:var(--muted);margin-left:8px">${allTs.length} períodos · ${selInds.length} ind.</span>
+        <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 2px"></span>
+        <button class="btn-toggle${!doAlign?' active-btn':''}" style="padding:3px 10px;font-size:.73rem"
+          title="${doAlign ? 'Mudar para períodos separados (datas reais)' : 'Mudar para períodos cruzados (posição relativa)'}"
+          onclick="evo2AlignMode=evo2AlignMode==='aligned'?'separate':'aligned';renderEvo2()">
+          ${doAlign ? '⇄ Cruzados' : '⧉ Separados'}</button>
+        <span style="font-size:.72rem;color:var(--muted);margin-left:8px">${numPeriods} períodos · ${selInds.length} ind.</span>
+        ${alignNote}
       </div>
       <div style="position:relative;height:430px"><canvas id="evo2-chart"></canvas></div>
     </div>`;
     window._evo2pending = { labels, datasets, metricDelta };
   } else {
     // ── Table view ──
-    const l1 = (window.fw1Label || '').trim() || 'FW1';
-    const l2 = (window.fw2Label || '').trim() || 'FW2';
+    const l1 = (window.fw1Label || '').trim() || 'FW-B';
+    const l2 = (window.fw2Label || '').trim() || 'FW-A';
+    const doAlignTable = evo2AlignMode === 'aligned' || evo2Metric === 'delta';
     const headerCols = selInds.flatMap(ind => [
       `<th style="color:var(--accent1);border-left:2px solid var(--border)">${esc(ind)}<br><span style="font-size:.65rem;font-weight:400">${esc(l1)}</span></th>`,
       `<th style="color:var(--accent2)">${esc(ind)}<br><span style="font-size:.65rem;font-weight:400">${esc(l2)}</span></th>`,
       `<th>Δ%</th>`
     ]).join('');
-    const bodyRows = allTs.map(ts => {
-      const d1 = fw1avg[ts] || {};
-      const d2 = fw2avg[ts] || {};
-      const label = new Date(ts).toLocaleString('pt-PT', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+    const rows = doAlignTable
+      ? alignedPairs
+      : allTs.map(ts => ({ label: new Date(ts).toLocaleString('pt-PT', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }), v1ts: ts, v2ts: ts }));
+    const bodyRows = rows.map(row => {
+      const label = row.label || new Date(row.v1ts).toLocaleString('pt-PT', { month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+      const d1 = fw1avg[row.v1ts] || {};
+      const d2 = fw2avg[row.v2ts] || {};
       const cells = selInds.flatMap(ind => {
         const v1 = d1[ind] !== undefined ? d1[ind] : null;
         const v2 = d2[ind] !== undefined ? d2[ind] : null;
@@ -2613,9 +2711,11 @@ function renderEvo2() {
       }).join('');
       return `<tr><td style="white-space:nowrap;font-size:.75rem">${label}</td>${cells}</tr>`;
     }).join('');
+    const numPeriodsTable = rows.length;
+    const alignNoteTable = (misaligned && doAlignTable) ? ' · <span style="color:var(--warn)">⚠️ alinhado por posição</span>' : '';
     rightHtml = `<div class="card" style="min-width:0">
       <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
-        <span style="font-size:.72rem;color:var(--muted)">${allTs.length} períodos · ${selInds.length} ind.</span>
+        <span style="font-size:.72rem;color:var(--muted)">${numPeriodsTable} períodos · ${selInds.length} ind.${alignNoteTable}</span>
       </div>
       <div class="tbl-wrap" style="max-height:520px">
         <table><thead><tr><th>Período</th>${headerCols}</tr></thead><tbody>${bodyRows}</tbody></table>
@@ -3049,8 +3149,9 @@ async function renderSavedAnalysesList() {
     <div class="saved-item">
       <div style="flex:1;min-width:0">
         <div class="si-name" style="font-weight:600">${esc(a.name)}</div>
-        <div class="si-date">${a.fw1.length} fich. FW1 &middot; ${a.fw2.length} fich. FW2 &middot; ${new Date(a.date).toLocaleDateString('pt')}</div>
+        <div class="si-date">${a.fw1.length} fich. FW-B &middot; ${a.fw2.length} fich. FW-A &middot; ${new Date(a.date).toLocaleDateString('pt')}</div>
       </div>
+      <button class="btn" style="padding:3px 10px;font-size:.75rem;white-space:nowrap" onclick="downloadAnalysisFiles(${i})" title="Descarregar todos os ficheiros CSV da análise">&#8681; ZIP</button>
       <button class="btn" style="padding:3px 10px;font-size:.75rem;white-space:nowrap" onclick="loadAnalysis(${i})">&#10549; Carregar</button>
       <button class="remove" style="font-size:.9rem" onclick="deleteAnalysis(${i})">&#10005;</button>
     </div>
@@ -3061,12 +3162,57 @@ renderSettings();
 renderEvo2();
 setTimeout(() => renderSavedDatasets(), 0);
 
+// ─────────────────────────────────────────────────────────────────
+// Download all files from a saved analysis as a ZIP
+// ─────────────────────────────────────────────────────────────────
+async function downloadAnalysisFiles(idx) {
+  const list = await getSavedAnalyses();
+  const a = list[idx];
+  if (!a) return;
+
+  function rowsToCsv(headers, rows) {
+    const escape = v => {
+      if (v == null) return '';
+      const s = String(v);
+      return s.includes(',') || s.includes('"') || s.includes('\n') ? '"' + s.replace(/"/g, '""') + '"' : s;
+    };
+    const lines = [headers.map(escape).join(',')];
+    rows.forEach(r => lines.push(headers.map(h => escape(r[h])).join(',')));
+    return lines.join('\r\n');
+  }
+
+  const zip = new JSZip();
+  const folderA = zip.folder('Firmware_A_Control');
+  const folderB = zip.folder('Firmware_B_Upgrade');
+
+  a.fw2.forEach(f => {
+    const csv = rowsToCsv(f.headers, f.rows);
+    folderA.file(f.name.endsWith('.csv') ? f.name : f.name + '.csv', csv);
+  });
+  a.fw1.forEach(f => {
+    const csv = rowsToCsv(f.headers, f.rows);
+    folderB.file(f.name.endsWith('.csv') ? f.name : f.name + '.csv', csv);
+  });
+
+  const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = (a.name || 'analise').replace(/[^\w\-]/g, '_') + '_ficheiros.zip';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // EVOLUÇÃO — métricas estatísticas por FW
 // ═══════════════════════════════════════════════════════════════════
 let evolStatsFW  = 'both';
 let evolStatsGuideOpen = false;
 let evolStatsSort = { col: 'score', dir: 'desc' };
+let evolStatsPage = 0;
+const EVOL_PAGE_SIZE = 20;
 
 function computeEvolStats(vals) {
   if (!vals || vals.length < 2) return null;
@@ -3213,7 +3359,7 @@ function renderEvolStats() {
     selInds = new Set(sortedInds);
   }
 
-  const lbl1 = esc(fw1Label || 'FW1'), lbl2 = esc(fw2Label || 'FW2');
+  const lbl1 = esc(fw1Label || 'FW-B'), lbl2 = esc(fw2Label || 'FW-A');
   function scoreStr(s) {
     if (s === null || s === undefined) return 'N/D';
     return (s >= 0 ? '+' : '') + s.toFixed(3);
@@ -3281,7 +3427,7 @@ function renderEvolStats() {
       return `<button class="btn" style="padding:4px 12px;font-size:.76rem;${
         active ? 'background:var(--accent1);color:#fff;border-color:var(--accent1)'
                : 'background:var(--surface2);color:var(--text);border:1px solid var(--border)'
-      }${avail ? '' : ';opacity:.4;pointer-events:none'}" onclick="evolStatsFW='${v}';renderEvolStats()">${lbl}</button>`;
+      }${avail ? '' : ';opacity:.4;pointer-events:none'}" onclick="evolStatsFW='${v}';evolStatsPage=0;renderEvolStats()">${lbl}</button>`;
     }).join('');
   const fwSel = `<div style="display:flex;align-items:center;gap:7px;margin-bottom:14px;flex-wrap:wrap">
     <span style="font-size:.77rem;color:var(--muted)">Mostrar:</span>${fwBtns}
@@ -3315,7 +3461,7 @@ function renderEvolStats() {
   function sortBtn(col, align) {
     const active = evolStatsSort.col === col;
     const dir    = active ? evolStatsSort.dir : null;
-    const click  = d => `evolStatsSort={col:'${col}',dir:'${d}'};renderEvolStats()`;
+    const click  = d => `evolStatsSort={col:'${col}',dir:'${d}'};evolStatsPage=0;renderEvolStats()`;
     const btn = (d, sym) => `<button onclick="${click(d)}" style="background:none;border:none;cursor:pointer;padding:0 1px;font-size:.55rem;line-height:1;color:${active && dir===d ? 'var(--accent1)' : 'var(--border)'}">${sym}</button>`;
     return `<span style="display:inline-flex;flex-direction:column;vertical-align:middle;margin-left:3px;gap:0">${btn('asc','▲')}${btn('desc','▼')}</span>`;
   }
@@ -3347,6 +3493,9 @@ function renderEvolStats() {
       const cmp = typeof ka === 'string' ? ka.localeCompare(kb) : (ka - kb);
       return evolStatsSort.dir === 'asc' ? cmp : -cmp;
     });
+    const totalPages1 = Math.max(1, Math.ceil(selArr.length / EVOL_PAGE_SIZE));
+    if (evolStatsPage >= totalPages1) evolStatsPage = totalPages1 - 1;
+    const pageArr1 = selArr.slice(evolStatsPage * EVOL_PAGE_SIZE, (evolStatsPage + 1) * EVOL_PAGE_SIZE);
     const cols = [
       { key: 'ind',    label: 'Indicador',  align: 'left'   },
       { key: 'score',  label: 'Score',      align: 'right'  },
@@ -3356,12 +3505,17 @@ function renderEvolStats() {
       { key: 'std',    label: 'Desvio',     align: 'right'  },
       { key: 'signal', label: 'Sinal',      align: 'center' },
     ];
-    tableHtml = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+    const pagerHtml1 = totalPages1 > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 0;font-size:.77rem">
+      <button class="btn" style="padding:3px 10px;font-size:.74rem;background:var(--surface2);color:var(--text);border:1px solid var(--border)" ${evolStatsPage===0?'disabled':''} onclick="evolStatsPage--;renderEvolStats()">◀ Ant.</button>
+      <span style="color:var(--muted)">Página ${evolStatsPage+1} / ${totalPages1} <span style="font-size:.68rem">(${selArr.length} indicadores)</span></span>
+      <button class="btn" style="padding:3px 10px;font-size:.74rem;background:var(--surface2);color:var(--text);border:1px solid var(--border)" ${evolStatsPage===totalPages1-1?'disabled':''} onclick="evolStatsPage++;renderEvolStats()">Próx. ▶</button>
+    </div>` : `<div style="padding:6px 0;font-size:.68rem;color:var(--muted);text-align:right">${selArr.length} indicadores</div>`;
+    tableHtml = pagerHtml1 + `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
       <thead><tr style="border-bottom:2px solid var(--border);font-size:.73rem;color:var(--muted)">
         ${cols.map(c => `<th style="padding:7px 10px;text-align:${c.align};white-space:nowrap">${c.label}${sortBtn(c.key, c.align)}</th>`).join('')}
       </tr></thead>
       <tbody>
-        ${selArr.map((ind, idx) => {
+        ${pageArr1.map((ind, idx) => {
           const st  = statsMap[ind];
           const sc  = scoresMap[ind];
           const sig = evolSignal(st);
@@ -3378,7 +3532,7 @@ function renderEvolStats() {
           </tr>`;
         }).join('')}
       </tbody>
-    </table></div>`;
+    </table></div>` + pagerHtml1;
   } else {
     // Both FWs — paired columns; sort by FW1 value when both present, else whichever exists
     function sortKeyBoth(ind, col) {
@@ -3396,6 +3550,9 @@ function renderEvolStats() {
       const cmp = typeof ka === 'string' ? ka.localeCompare(kb) : (ka - kb);
       return evolStatsSort.dir === 'asc' ? cmp : -cmp;
     });
+    const totalPages2 = Math.max(1, Math.ceil(selArr.length / EVOL_PAGE_SIZE));
+    if (evolStatsPage >= totalPages2) evolStatsPage = totalPages2 - 1;
+    const pageArr2 = selArr.slice(evolStatsPage * EVOL_PAGE_SIZE, (evolStatsPage + 1) * EVOL_PAGE_SIZE);
     const subHdrs = [
       { key: 'score',  label: 'Score' },
       { key: 'growth', label: 'Crescimento' },
@@ -3404,7 +3561,12 @@ function renderEvolStats() {
       { key: 'std',    label: 'Desvio' },
       { key: 'signal', label: 'Sinal' },
     ];
-    tableHtml = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
+    const pagerHtml2 = totalPages2 > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 0;font-size:.77rem">
+      <button class="btn" style="padding:3px 10px;font-size:.74rem;background:var(--surface2);color:var(--text);border:1px solid var(--border)" ${evolStatsPage===0?'disabled':''} onclick="evolStatsPage--;renderEvolStats()">◀ Ant.</button>
+      <span style="color:var(--muted)">Página ${evolStatsPage+1} / ${totalPages2} <span style="font-size:.68rem">(${selArr.length} indicadores)</span></span>
+      <button class="btn" style="padding:3px 10px;font-size:.74rem;background:var(--surface2);color:var(--text);border:1px solid var(--border)" ${evolStatsPage===totalPages2-1?'disabled':''} onclick="evolStatsPage++;renderEvolStats()">Próx. ▶</button>
+    </div>` : `<div style="padding:6px 0;font-size:.68rem;color:var(--muted);text-align:right">${selArr.length} indicadores</div>`;
+    tableHtml = pagerHtml2 + `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse">
       <thead>
         <tr style="font-size:.72rem">
           <th rowspan="2" style="padding:7px 10px;text-align:left;border-bottom:2px solid var(--border);vertical-align:bottom;font-size:.73rem;color:var(--muted)">Indicador${sortBtn('ind','left')}</th>
@@ -3415,7 +3577,7 @@ function renderEvolStats() {
         </tr>
       </thead>
       <tbody>
-        ${selArr.map((ind, idx) => {
+        ${pageArr2.map((ind, idx) => {
           const st1 = stats1[ind],  st2 = stats2[ind];
           const sc1 = scores1[ind], sc2 = scores2[ind];
           const sig1 = evolSignal(st1), sig2 = evolSignal(st2);
@@ -3435,7 +3597,7 @@ function renderEvolStats() {
           </tr>`;
         }).join('')}
       </tbody>
-    </table></div>`;
+    </table></div>` + pagerHtml2;
   }
 
   root.innerHTML = guideHtml + fwSel +

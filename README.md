@@ -59,24 +59,45 @@ A single-page web application for comparing two sets of firmware CSV exports sid
 
 ---
 
-## Requirements
+## Memory & persistence
+
+All data (configurations, saved firmwares, saved analyses) is stored **locally in each user's browser** (IndexedDB / localStorage). There is no server-side storage — each person who opens the app has their own isolated memory. Clearing browser data will erase saved data.
+
+---
+
+## Running locally
+
+### Requirements
 
 - Python 3.9+
 - Flask
 
 ```bash
 pip install -r requirements.txt
-```
-
----
-
-## Running
-
-```bash
 python app.py
 ```
 
 Opens on **http://localhost:5000** (or via the Codespace port forwarding URL).
+
+### Running without Python (direct file)
+
+Since the app is a self-contained HTML file, you can also open `src/comparador.html` directly in a browser — though some browsers restrict IndexedDB on `file://` URLs, so the local Flask server is recommended for development.
+
+---
+
+## Online deployment (static hosting)
+
+The app is a single static HTML file — **no backend required** for online hosting. Flask is only needed for local development.
+
+Supported static hosting options (all free):
+
+| Platform | Setup |
+|---|---|
+| **GitHub Pages** | Enable in repo Settings → Pages → branch `main`, folder `/src` |
+| **Netlify** | Connect GitHub repo, publish directory: `src` |
+| **Cloudflare Pages** | Connect GitHub repo, build output: `src` |
+
+After deploying, each user's memory stays local to their own browser.
 
 ---
 
@@ -84,7 +105,7 @@ Opens on **http://localhost:5000** (or via the Codespace port forwarding URL).
 
 ```
 .
-├── app.py              # Flask server (serves static files only)
+├── app.py              # Flask server for local development (serves src/ as static files)
 ├── requirements.txt    # Python dependencies (flask only)
 ├── AGENTS.md           # AI agent instructions (architecture, conventions, pitfalls)
 └── src/

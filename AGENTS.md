@@ -9,7 +9,7 @@ Single-page web application for comparing firmware CSV exports. The entire appli
 ## Architecture
 
 ```
-app.py              → Flask: serves src/ as static files only
+app.py              → Flask: serves src/ as static files (local development only)
 requirements.txt    → flask>=2.3
 src/
   comparador.html   → Complete app (HTML + CSS + JS, no build step)
@@ -17,6 +17,8 @@ uploads/            → Not used at runtime (legacy folder)
 ```
 
 **All development happens in `src/comparador.html`.**
+
+The app is a self-contained static HTML file. Flask is only needed for local development. For online deployment, any static hosting service (GitHub Pages, Netlify, Cloudflare Pages) works — no backend required.
 
 ---
 
@@ -75,9 +77,17 @@ When FW-A and FW-B have non-overlapping time periods (before/after scenario):
 - Δ% always uses `alignedPairs` regardless of toggle
 
 ### Persistence (IndexedDB via `IDB` helper)
-- `CFG_KEY` — app config
+- `CFG_KEY` — app config (thresholds, clusters, weights) — also mirrored in `localStorage` for legacy
 - `DS_KEY` — saved firmware datasets
 - `AN_KEY` — saved full analyses (includes all file data + config + state)
+- All storage is **local to each user's browser** — no server-side persistence
+- Migration: on first load, data in `localStorage` is moved to IndexedDB automatically
+
+### Deployment (static hosting)
+- The app is a pure static HTML file — no backend needed for production
+- GitHub Pages: enable in repo Settings → Pages → branch `main`, folder `/src`
+- Netlify / Cloudflare Pages: connect repo, publish directory `src`
+- Each user's memory is isolated to their own browser (IndexedDB/localStorage)
 
 ### External dependencies (CDN, no local install)
 - `chart.js@4.4.3` — charts

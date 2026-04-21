@@ -329,7 +329,6 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
           <input type="text" id="fw2-label-tab" placeholder="Firmware A — Control / Antes"
             style="background:transparent;border:none;border-bottom:1px dashed var(--border);font:inherit;color:inherit;padding:0 4px;flex:1;min-width:0;font-size:.9rem"
             oninput="fw2Label=this.value;document.getElementById('fw2-label').value=this.value;updateFWHeaders()">
-          <button class="btn" style="padding:3px 9px;font-size:.72rem;flex-shrink:0" onclick="saveDataset('fw2')">+ Guardar</button>
         </h2>
         <div class="fw-hint">Ficheiros CSV do firmware de referência / período antes</div>
         <div class="drop-zone" id="drop2-tab">
@@ -339,13 +338,17 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
           <input type="file" id="inp-fw2-tab" accept=".csv,.txt" multiple>
         </div>
         <div class="file-list" id="list-fw2-tab"></div>
+        <div style="margin-top:8px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:inline-flex;align-items:center">
+            <button onclick="saveDataset('fw2')" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">💾 Guardar Firmware</button>
+          </div>
+        </div>
       </div>
       <div class="fw-panel fw1">
         <h2 style="display:flex;align-items:center;gap:6px">🔵
           <input type="text" id="fw1-label-tab" placeholder="Firmware B — Upgrade / Depois"
             style="background:transparent;border:none;border-bottom:1px dashed var(--border);font:inherit;color:inherit;padding:0 4px;flex:1;min-width:0;font-size:.9rem"
             oninput="fw1Label=this.value;document.getElementById('fw1-label').value=this.value;updateFWHeaders()">
-          <button class="btn" style="padding:3px 9px;font-size:.72rem;flex-shrink:0" onclick="saveDataset('fw1')">+ Guardar</button>
         </h2>
         <div class="fw-hint">Ficheiros CSV do firmware em avaliação / período depois</div>
         <div class="drop-zone" id="drop1-tab">
@@ -355,6 +358,11 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
           <input type="file" id="inp-fw1-tab" accept=".csv,.txt" multiple>
         </div>
         <div class="file-list" id="list-fw1-tab"></div>
+        <div style="margin-top:8px">
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:inline-flex;align-items:center">
+            <button onclick="saveDataset('fw1')" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">💾 Guardar Firmware</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>

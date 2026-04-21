@@ -247,8 +247,31 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
         <button onclick="showSaveAnalysisDialog()" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">💾 Guardar Análise</button>
       </div>
     </div>
+    <!-- mode toggle -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:.8rem;color:var(--muted);font-weight:600">Modo de carregamento:</span>
+      <div id="upload-mode-toggle" style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px;gap:2px">
+        <button id="mode-btn-dual" onclick="setUploadMode('dual')"
+          style="border:none;border-radius:16px;padding:4px 14px;font-size:.78rem;cursor:pointer;font-weight:600;background:var(--accent1);color:#fff;transition:all .15s">📁 Dois Grupos</button>
+        <button id="mode-btn-zip" onclick="setUploadMode('zip')"
+          style="border:none;border-radius:16px;padding:4px 14px;font-size:.78rem;cursor:pointer;font-weight:600;background:transparent;color:var(--muted);transition:all .15s">🗜️ ZIP</button>
+      </div>
+    </div>
+
+    <!-- zip single drop zone (hidden by default) -->
+    <div id="zip-upload-zone" style="display:none;margin-bottom:12px">
+      <div class="drop-zone" id="drop-zip" style="padding:28px 20px;border-color:var(--accent1)">
+        <div class="di">🗜️</div>
+        <p style="font-size:.85rem;margin-top:6px">Arrastar ficheiro <strong>.zip</strong> aqui</p>
+        <p>ou clica para selecionar</p>
+        <p style="color:var(--muted);font-size:.72rem;margin-top:4px">Estrutura esperada: <code>Firmware_A_Control/</code> e <code>Firmware_B_Upgrade/</code></p>
+        <input type="file" id="inp-zip" accept=".zip">
+      </div>
+      <div id="zip-status" style="margin-top:8px;font-size:.8rem;color:var(--muted);text-align:center"></div>
+    </div>
+
     <!-- file panels -->
-    <div class="upload-grid">
+    <div class="upload-grid" id="dual-upload-grid">
       <div class="fw-panel fw2">
         <h2 style="display:flex;align-items:center;gap:6px">🟠
           <input type="text" id="fw2-label-tab" placeholder="Firmware A — Control / Antes"
@@ -334,8 +357,8 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
           <table>
             <thead><tr>
               <th>Indicador</th>
-              <th id="cmp-th-fw1" style="color:var(--accent1)">FW-B — Upgrade</th>
               <th id="cmp-th-fw2" style="color:var(--accent2)">FW-A — Control</th>
+              <th id="cmp-th-fw1" style="color:var(--accent1)">FW-B — Upgrade</th>
               <th>Comparação</th>
               <th>Estado</th>
             </tr></thead>
@@ -942,7 +965,7 @@ function refreshAll() {
   // Rebuild pills
   const pr = document.getElementById('pill-row');
   pr.innerHTML = '';
-  ['fw1', 'fw2'].forEach(fw => {
+  ['fw2', 'fw1'].forEach(fw => {
     S[fw].forEach((f, idx) => {
       const p = document.createElement('div');
       p.className = 'pill ' + fw;
@@ -1135,6 +1158,7 @@ function updateFWHeaders() {
   const t2 = document.getElementById('cmp-th-fw2');
   if (t1) t1.textContent = l1;
   if (t2) t2.textContent = l2;
+  // keep FW-A always left of FW-B in the th elements (order set in HTML)
 }
 
 // ── View toggle ──
@@ -1225,7 +1249,7 @@ function renderCmpView() {
       style="background:none;border:none;cursor:pointer;padding:0 3px 0 0;font-size:.72rem;color:var(--muted);vertical-align:middle;line-height:1" tabindex="-1">🔗</button>`;
     return `<tr class="${cls}">
       <td>${hideBtn(r.h)}${dataLink}${esc(r.h)}${typeTag(r.h)}${clTag(r.cluster)}</td>
-      <td class="v1">${fmtNum(r.v1)}</td><td class="v2">${fmtNum(r.v2)}</td>
+      <td class="v2">${fmtNum(r.v2)}</td><td class="v1">${fmtNum(r.v1)}</td>
       <td>${pctHtml(r.pct, r.cls)}</td><td>${levelBadge(r.cls)}</td>
     </tr>`;
   }
@@ -1276,7 +1300,7 @@ function renderCmpView() {
       ? vis.map(r => `<tr class="${rowCls(r)}" style="opacity:.6">
           <td><button class="btn" style="padding:1px 7px;font-size:.68rem" onclick="hiddenRows.delete('${r.h.replace(/'/g,"&#39;")}');setCmpView('all')">↩</button>
             ${esc(r.h)}${typeTag(r.h)}${clTag(r.cluster)}</td>
-          <td class="v1">${fmtNum(r.v1)}</td><td class="v2">${fmtNum(r.v2)}</td>
+          <td class="v2">${fmtNum(r.v2)}</td><td class="v1">${fmtNum(r.v1)}</td>
           <td>${pctHtml(r.pct, r.cls)}</td><td>${levelBadge(r.cls)}</td>
         </tr>`).join('')
       : '<tr><td colspan="5" class="empty-row">Nenhum indicador escondido</td></tr>')
@@ -1404,8 +1428,8 @@ function renderComparison(rows, filter) {
       style="background:none;border:none;cursor:pointer;padding:0 3px 0 0;font-size:.72rem;color:var(--muted);vertical-align:middle;line-height:1" tabindex="-1">🔗</button>`;
     return `<tr class="${rowCls(r)}">
       <td>${hideBtn(r.h)}${dl}${esc(r.h)}${typeTag(r.h)}${clTag(r.cluster)}</td>
-      <td class="v1">${fmtNum(r.v1)}</td>
       <td class="v2">${fmtNum(r.v2)}</td>
+      <td class="v1">${fmtNum(r.v1)}</td>
       <td>${pctHtml(r.pct, r.cls)}</td>
       <td>${levelBadge(r.cls)}</td>
     </tr>`;
@@ -1446,8 +1470,8 @@ function renderFails(fails, warns) {
       style="background:none;border:none;cursor:pointer;padding:0 3px 0 0;font-size:.72rem;color:var(--muted);vertical-align:middle;line-height:1" tabindex="-1">🔗</button>`;
     return `<tr class="row-fail">
       <td>${hideBtn(r.h)}${dl}${esc(r.h)}${typeTag(r.h)}${clTag(r.cluster)}</td>
-      <td class="v1">${fmtNum(r.v1)}</td>
       <td class="v2">${fmtNum(r.v2)}</td>
+      <td class="v1">${fmtNum(r.v1)}</td>
       <td>${pctHtml(r.pct, r.cls)}</td>
       <td>${levelBadge(r.cls)}</td>
     </tr>`;
@@ -1474,8 +1498,8 @@ function renderImprovs(improvs) {
       style="background:none;border:none;cursor:pointer;padding:0 3px 0 0;font-size:.72rem;color:var(--muted);vertical-align:middle;line-height:1" tabindex="-1">🔗</button>`;
     return `<tr class="row-improv">
       <td>${hideBtn(r.h)}${dl}${esc(r.h)}${typeTag(r.h)}${clTag(r.cluster)}</td>
-      <td class="v1">${fmtNum(r.v1)}</td>
       <td class="v2">${fmtNum(r.v2)}</td>
+      <td class="v1">${fmtNum(r.v1)}</td>
       <td>${pctHtml(r.pct, r.cls)}</td>
     </tr>`;
   }).join('');
@@ -2246,8 +2270,8 @@ function generateReport() {
     return `<tr style="border-bottom:1px solid #f0f0f0">
       <td style="padding:5px 8px;font-size:11px;font-weight:600">${r.h}</td>
       <td style="padding:5px 8px;font-size:10px;color:#666">${r.cluster ? (sfIcon ? sfIcon + ' ' : '') + r.cluster : '—'}</td>
-      <td style="padding:5px 8px;font-size:11px;text-align:right">${r.v1 !== null ? r.v1.toLocaleString('pt-PT',{maximumFractionDigits:1}) : '—'}</td>
       <td style="padding:5px 8px;font-size:11px;text-align:right">${r.v2 !== null ? r.v2.toLocaleString('pt-PT',{maximumFractionDigits:1}) : '—'}</td>
+      <td style="padding:5px 8px;font-size:11px;text-align:right">${r.v1 !== null ? r.v1.toLocaleString('pt-PT',{maximumFractionDigits:1}) : '—'}</td>
       <td style="padding:5px 8px;font-size:11px;font-weight:700;color:${clrHex};text-align:right">${r.pct !== null ? (r.pct>=0?'+':'')+r.pct.toFixed(1)+'%' : '—'}</td>
       <td style="padding:5px 8px">${bar}</td>
       <td style="padding:5px 8px"><span style="background:${clrHex}22;color:${clrHex};border:1px solid ${clrHex}55;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:600">${r.cls.label}</span></td>
@@ -2262,8 +2286,8 @@ function generateReport() {
     return `<tr style="border-bottom:1px solid #f0f0f0">
       <td style="padding:5px 8px;font-size:11px;font-weight:600">${r.h}</td>
       <td style="padding:5px 8px;font-size:10px;color:#666">${r.cluster ? (impIcon ? impIcon + ' ' : '') + r.cluster : '—'}</td>
-      <td style="padding:5px 8px;font-size:11px;text-align:right">${r.v1 !== null ? r.v1.toLocaleString('pt-PT',{maximumFractionDigits:1}) : '—'}</td>
       <td style="padding:5px 8px;font-size:11px;text-align:right">${r.v2 !== null ? r.v2.toLocaleString('pt-PT',{maximumFractionDigits:1}) : '—'}</td>
+      <td style="padding:5px 8px;font-size:11px;text-align:right">${r.v1 !== null ? r.v1.toLocaleString('pt-PT',{maximumFractionDigits:1}) : '—'}</td>
       <td style="padding:5px 8px;font-size:11px;font-weight:700;color:${clrHex};text-align:right">${r.pct !== null ? r.pct.toFixed(1)+'%' : '—'}</td>
       <td style="padding:5px 8px">${bar}</td>
       <td style="padding:5px 8px"><span style="background:${clrHex}22;color:${clrHex};border:1px solid ${clrHex}55;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:600">${r.cls.label}</span></td>
@@ -2389,14 +2413,14 @@ ${clrData.length ? `<h2>📦 Resultados por Cluster</h2><div class="cl-grid">${c
 ${sigWarnsFails.length ? `
 <h2>🔴 Piorias Significativas${condASet.size ? ' <span style="font-size:10px;color:#94a3b8;font-weight:400">(excluindo Condição A)</span>' : ''} (${sigWarnsFails.length})</h2>
 <table>
-  <thead><tr><th style="min-width:110px">Indicador</th><th style="width:110px">Cluster</th><th style="width:72px;text-align:right">${l1}</th><th style="width:72px;text-align:right">${l2}</th><th style="width:52px;text-align:right">Δ%</th><th style="width:120px">Variação</th><th style="min-width:90px">Nível</th></tr></thead>
+  <thead><tr><th style="min-width:110px">Indicador</th><th style="width:110px">Cluster</th><th style="width:72px;text-align:right">${l2}</th><th style="width:72px;text-align:right">${l1}</th><th style="width:52px;text-align:right">Δ%</th><th style="width:120px">Variação</th><th style="min-width:90px">Nível</th></tr></thead>
   <tbody>${sfRows}</tbody>
 </table>` : `<h2 style="color:#22c55e">✅ Sem piorias significativas</h2>`}
 
 ${sigImprovs.length ? `
 <h2>🟢 Melhorias Significativas${condASet.size ? ' <span style="font-size:10px;color:#94a3b8;font-weight:400">(excluindo Condição A)</span>' : ''} (${sigImprovs.length})</h2>
 <table>
-  <thead><tr><th style="min-width:110px">Indicador</th><th style="width:110px">Cluster</th><th style="width:72px;text-align:right">${l1}</th><th style="width:72px;text-align:right">${l2}</th><th style="width:52px;text-align:right">Δ%</th><th style="width:120px">Variação</th><th style="min-width:90px">Nível</th></tr></thead>
+  <thead><tr><th style="min-width:110px">Indicador</th><th style="width:110px">Cluster</th><th style="width:72px;text-align:right">${l2}</th><th style="width:72px;text-align:right">${l1}</th><th style="width:52px;text-align:right">Δ%</th><th style="width:120px">Variação</th><th style="min-width:90px">Nível</th></tr></thead>
   <tbody>${impRows}</tbody>
 </table>` : ''}
 
@@ -2667,11 +2691,12 @@ function renderEvo2() {
           onclick="evo2Metric='values';renderEvo2()">Valores FW-A/FW-B</button>
         <button class="btn-toggle${metricDelta?' active-btn':''}" style="padding:3px 10px;font-size:.73rem"
           onclick="evo2Metric='delta';renderEvo2()">Δ% variação</button>
-        <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 2px"></span>
+        ${!metricDelta ? `<span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 2px"></span>
         <button class="btn-toggle${!doAlign?' active-btn':''}" style="padding:3px 10px;font-size:.73rem"
           title="${doAlign ? 'Mudar para períodos separados (datas reais)' : 'Mudar para períodos cruzados (posição relativa)'}"
           onclick="evo2AlignMode=evo2AlignMode==='aligned'?'separate':'aligned';renderEvo2()">
-          ${doAlign ? '⇄ Cruzados' : '⧉ Separados'}</button>
+          ${doAlign ? '⇄ Cruzados' : '⧉ Separados'}</button>` : `<span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 2px"></span>
+        <button class="btn-toggle active-btn" style="padding:3px 10px;font-size:.73rem;opacity:.5;cursor:default" disabled title="Δ% variação requer períodos combinados">⇄ Cruzados</button>`}
         <span style="font-size:.72rem;color:var(--muted);margin-left:8px">${numPeriods} períodos · ${selInds.length} ind.</span>
         ${alignNote}
       </div>
@@ -2824,6 +2849,69 @@ document.querySelectorAll('header .tabs .tab-btn').forEach(btn => {
 // ═══════════════════════════════════════════════════════════════════
 // FILE INPUT EVENTS
 // ═══════════════════════════════════════════════════════════════════
+
+// ── Upload mode toggle ──────────────────────────────────────────
+function setUploadMode(mode) {
+  const dual = document.getElementById('dual-upload-grid');
+  const zipZone = document.getElementById('zip-upload-zone');
+  const btnDual = document.getElementById('mode-btn-dual');
+  const btnZip  = document.getElementById('mode-btn-zip');
+  if (mode === 'zip') {
+    dual.style.display = 'none';
+    zipZone.style.display = '';
+    btnDual.style.background = 'transparent';
+    btnDual.style.color = 'var(--muted)';
+    btnZip.style.background = 'var(--accent1)';
+    btnZip.style.color = '#fff';
+  } else {
+    dual.style.display = '';
+    zipZone.style.display = 'none';
+    btnDual.style.background = 'var(--accent1)';
+    btnDual.style.color = '#fff';
+    btnZip.style.background = 'transparent';
+    btnZip.style.color = 'var(--muted)';
+  }
+}
+
+// ── ZIP loader ──────────────────────────────────────────────────
+function loadZip(file) {
+  if (!file) return;
+  const statusEl = document.getElementById('zip-status');
+  statusEl.textContent = '⏳ A carregar ZIP…';
+  const FOLDER_A = 'firmware_a_control/';
+  const FOLDER_B = 'firmware_b_upgrade/';
+  file.arrayBuffer().then(buf => JSZip.loadAsync(buf)).then(zip => {
+    const tasks = [];
+    let countA = 0, countB = 0;
+    zip.forEach((relPath, entry) => {
+      if (entry.dir) return;
+      const lower = relPath.toLowerCase();
+      let fw = null;
+      if (lower.startsWith(FOLDER_A)) fw = 'fw2';
+      else if (lower.startsWith(FOLDER_B)) fw = 'fw1';
+      else return; // ignore files outside expected folders
+      const baseName = relPath.split('/').pop();
+      if (!/\.(csv|txt)$/i.test(baseName)) return;
+      if (fw === 'fw2') countA++; else countB++;
+      tasks.push(
+        entry.async('string').then(text => {
+          const { headers, rows } = parseCSV(text);
+          const averages = computeAvg(headers, rows);
+          S[fw].push({ name: baseName, headers, rows, averages, included: true });
+        })
+      );
+    });
+    return Promise.all(tasks).then(() => ({ countA, countB }));
+  }).then(({ countA, countB }) => {
+    renderLists();
+    refreshAll();
+    statusEl.textContent = `✅ Carregados: ${countA} ficheiro(s) FW-A, ${countB} ficheiro(s) FW-B`;
+  }).catch(err => {
+    statusEl.textContent = `❌ Erro ao ler ZIP: ${err.message}`;
+  });
+}
+
+
 ['fw1', 'fw2'].forEach(fw => {
   const n = fw.slice(-1);
   const inp  = document.getElementById('inp-' + fw);
@@ -2851,6 +2939,18 @@ document.querySelectorAll('header .tabs .tab-btn').forEach(btn => {
       loadFiles(e.dataTransfer.files, fw);
     });
   }
+});
+
+// ── ZIP drop zone events ────────────────────────────────────────
+const inpZip  = document.getElementById('inp-zip');
+const dropZip = document.getElementById('drop-zip');
+inpZip.addEventListener('change', e => { loadZip(e.target.files[0]); inpZip.value = ''; });
+dropZip.addEventListener('dragover',  e => { e.preventDefault(); dropZip.classList.add('drag-over'); });
+dropZip.addEventListener('dragleave', () => dropZip.classList.remove('drag-over'));
+dropZip.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZip.classList.remove('drag-over');
+  loadZip(e.dataTransfer.files[0]);
 });
 
 document.getElementById('cmp-filter')?.addEventListener('input', renderCmpView);
@@ -3208,7 +3308,7 @@ async function downloadAnalysisFiles(idx) {
 // ═══════════════════════════════════════════════════════════════════
 // EVOLUÇÃO — métricas estatísticas por FW
 // ═══════════════════════════════════════════════════════════════════
-let evolStatsFW  = 'both';
+let evolStatsFW  = 'fw1';
 let evolStatsGuideOpen = false;
 let evolStatsSort = { col: 'score', dir: 'desc' };
 let evolStatsPage = 0;
@@ -3377,11 +3477,11 @@ function renderEvolStats() {
   let guideBody = '';
   if (evolStatsGuideOpen) {
     const metrics = [
-      ['📈', 'Crescimento (%)', '((last − first) / |first|) × 100', 'Direção e magnitude total da evolução no período.'],
-      ['⚡', 'Taxa Diária Composta', '(last/first)^(1/(n−1)) − 1', 'Velocidade de crescimento por unidade de tempo. Válido apenas com valores positivos.'],
-      ['🌪️', 'Variação Absoluta Média', 'mean(|xₙ − xₙ₋₁|)', 'Instabilidade entre medições consecutivas. Alta = comportamento errático.'],
-      ['📐', 'Desvio Padrão', 'σ(valores)', 'Dispersão global. Detecta picos e anomalias estruturais.'],
-      ['🎯', 'Score', 'taxa_norm − (var_abs_norm + std_norm) / 2', 'Índice sintético: crescimento normalizado menos volatilidade. Usa log + min-max. Indicadores no topo = crescimento elevado e/ou baixa volatilidade.'],
+      ['🎯', 'Score', 'taxa_norm − (var_abs_norm + std_norm) / 2', 'Ranking geral: quanto maior, melhor o comportamento do indicador. Permite ordenar e priorizar rapidamente quais indicadores merecem atenção.'],
+      ['📈', 'Crescimento (%)', '((last − first) / |first|) × 100', 'Conclui se o indicador subiu ou desceu ao longo do período. Útil para detetar tendências persistentes de degradação ou melhoria.'],
+      ['⚡', 'Taxa Diária Composta', '(last/first)^(1/(n−1)) − 1', 'Conclui a velocidade a que o indicador está a mudar por dia. Permite comparar ritmos de variação entre indicadores com escalas diferentes.'],
+      ['🌪️', 'Variação Absoluta Média', 'mean(|xₙ − xₙ₋₁|)', 'Conclui se o indicador é irregular ou estável entre medições. Alta = comportamento errático ou picos frequentes; baixa = evolução suave e previsível.'],
+      ['📐', 'Desvio Padrão', 'σ(valores)', 'Conclui se existem picos ou anomalias pontuais. Alto = há valores extremos que fogem da norma; baixo = distribuição consistente ao longo do tempo.'],
     ];
     guideBody = `<div style="border-top:1px solid var(--border);padding:12px 16px 14px">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin-bottom:12px">
@@ -3421,7 +3521,7 @@ function renderEvolStats() {
   </div>`;
 
   // ── FW selector ──
-  const fwBtns = [['fw1', lbl1, hasFW1], ['fw2', lbl2, hasFW2], ['both', 'Ambos', hasFW1 || hasFW2]]
+  const fwBtns = [['fw2', lbl2, hasFW2], ['fw1', lbl1, hasFW1], ['both', 'Ambos', hasFW1 || hasFW2]]
     .map(([v, lbl, avail]) => {
       const active = evolStatsFW === v;
       return `<button class="btn" style="padding:4px 12px;font-size:.76rem;${
@@ -3573,7 +3673,7 @@ function renderEvolStats() {
           ${subHdrs.map(h => `<th colspan="2" style="padding:5px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-size:.71rem;white-space:nowrap">${h.label}${sortBtn(h.key,'center')}</th>`).join('')}
         </tr>
         <tr style="border-bottom:2px solid var(--border);font-size:.68rem">
-          ${subHdrs.map(() => `<th style="padding:4px 8px;text-align:right;color:var(--accent1)">🔵 ${lbl1}</th><th style="padding:4px 8px;text-align:right;color:var(--accent2)">🟠 ${lbl2}</th>`).join('')}
+          ${subHdrs.map(() => `<th style="padding:4px 8px;text-align:right;color:var(--accent2)">🟠 ${lbl2}</th><th style="padding:4px 8px;text-align:right;color:var(--accent1)">🔵 ${lbl1}</th>`).join('')}
         </tr>
       </thead>
       <tbody>
@@ -3586,14 +3686,14 @@ function renderEvolStats() {
           return `<tr style="${rb}">
             <td style="padding:7px 10px;font-size:.79rem;white-space:nowrap"><button title="Ver nos Dados" onclick="viewIndicatorInData('${ind.replace(/'/g, "\\'")}')"
               style="background:none;border:none;cursor:pointer;padding:0 3px 0 0;font-size:.72rem;color:var(--muted);vertical-align:middle;line-height:1" tabindex="-1">🔗</button>${esc(ind)}${typeTag(ind)}</td>
-            <td style="padding:7px 8px;text-align:right;font-size:.76rem;font-weight:600;color:var(--muted)">${sc1 !== undefined ? scoreStr(sc1) : 'N/D'}</td>
             <td style="padding:7px 8px;text-align:right;font-size:.76rem;font-weight:600;color:var(--muted)">${sc2 !== undefined ? scoreStr(sc2) : 'N/D'}</td>
-            ${numTd(st1 ? st1.growth : null, '%', posColor, x)}${numTd(st2 ? st2.growth : null, '%', posColor, x)}
-            ${numTd(st1 ? st1.dailyRate : null, '%', posColor, x)}${numTd(st2 ? st2.dailyRate : null, '%', posColor, x)}
-            ${numTd(st1 ? st1.meanAbsVar : null, '', null, x)}${numTd(st2 ? st2.meanAbsVar : null, '', null, x)}
-            ${numTd(st1 ? st1.stdDev : null, '', null, x)}${numTd(st2 ? st2.stdDev : null, '', null, x)}
-            <td style="padding:7px 8px;text-align:center;font-size:.76rem;color:${sig1.color}">${sig1.icon} ${sig1.label}</td>
+            <td style="padding:7px 8px;text-align:right;font-size:.76rem;font-weight:600;color:var(--muted)">${sc1 !== undefined ? scoreStr(sc1) : 'N/D'}</td>
+            ${numTd(st2 ? st2.growth : null, '%', posColor, x)}${numTd(st1 ? st1.growth : null, '%', posColor, x)}
+            ${numTd(st2 ? st2.dailyRate : null, '%', posColor, x)}${numTd(st1 ? st1.dailyRate : null, '%', posColor, x)}
+            ${numTd(st2 ? st2.meanAbsVar : null, '', null, x)}${numTd(st1 ? st1.meanAbsVar : null, '', null, x)}
+            ${numTd(st2 ? st2.stdDev : null, '', null, x)}${numTd(st1 ? st1.stdDev : null, '', null, x)}
             <td style="padding:7px 8px;text-align:center;font-size:.76rem;color:${sig2.color}">${sig2.icon} ${sig2.label}</td>
+            <td style="padding:7px 8px;text-align:center;font-size:.76rem;color:${sig1.color}">${sig1.icon} ${sig1.label}</td>
           </tr>`;
         }).join('')}
       </tbody>

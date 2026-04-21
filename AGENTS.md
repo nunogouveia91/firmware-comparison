@@ -82,7 +82,7 @@ When FW-A and FW-B have non-overlapping time periods (before/after scenario):
 ### Persistence (IndexedDB via `IDB` helper)
 - `CFG_KEY` — app config (thresholds, clusters, weights) — also mirrored in `localStorage` for legacy
 - `DS_KEY` — saved firmware datasets
-- `AN_KEY` — saved full analyses (includes all file data + config + state)
+- `AN_KEY` — saved full analyses (includes all file data + config + state); names generated as `YYYY-MM-DD_modelo_firmware_piloto` (suffix `_1`, `_2`… for duplicates)
 - All storage is **local to each user's browser** — no server-side persistence
 - Migration: on first load, data in `localStorage` is moved to IndexedDB automatically
 

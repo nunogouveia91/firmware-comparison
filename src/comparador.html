@@ -164,8 +164,29 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
 <!-- Analysis dialog -->
 <div id="save-analysis-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;min-width:340px;max-width:480px;width:90%">
-    <div style="font-size:.9rem;font-weight:700;margin-bottom:12px">💾 Guardar Análise</div>
-    <input type="text" id="analysis-name-inp" placeholder="Nome da análise (ex: FW_v3_vs_FW_v2)" style="width:100%;margin-bottom:10px">
+    <div style="font-size:.9rem;font-weight:700;margin-bottom:14px">💾 Guardar Análise</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Modelo</label>
+        <input type="text" id="an-modelo" placeholder="ex: SGFc12000065E" style="width:100%">
+      </div>
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Firmware</label>
+        <input type="text" id="an-firmware" placeholder="ex: v6_ftth" style="width:100%">
+      </div>
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Tipo de Piloto</label>
+        <div style="display:flex;gap:8px">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.85rem">
+            <input type="radio" name="an-piloto" value="alfas" checked> Alfas
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.85rem">
+            <input type="radio" name="an-piloto" value="betas"> Betas
+          </label>
+        </div>
+      </div>
+    </div>
+    <div id="an-name-preview" style="font-size:.75rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin-bottom:14px;font-family:monospace"></div>
     <div style="font-size:.73rem;color:var(--muted);margin-bottom:14px">Inclui: dados carregados, comparação, período, clusters, limiares e configuração completa.</div>
     <div style="display:flex;gap:8px">
       <button class="btn" onclick="doSaveAnalysis()" style="flex:1">Guardar</button>
@@ -3146,17 +3167,52 @@ async function getSavedAnalyses() {
   catch(_) { return []; }
 }
 
+function buildAnalysisName(modelo, firmware, piloto) {
+  const d = new Date();
+  const dateStr = d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+  const parts = [dateStr, modelo, firmware, piloto].filter(Boolean);
+  return parts.join('_');
+}
+
+function updateAnNamePreview() {
+  const modelo  = document.getElementById('an-modelo')?.value.trim() || '';
+  const firmware = document.getElementById('an-firmware')?.value.trim() || '';
+  const piloto  = document.querySelector('input[name="an-piloto"]:checked')?.value || 'alfas';
+  const base = buildAnalysisName(modelo, firmware, piloto);
+  document.getElementById('an-name-preview').textContent = base || '—';
+}
+
 function showSaveAnalysisDialog() {
-  const auto = 'Análise_' + new Date().toLocaleDateString('pt').replace(/\//g, '-');
-  document.getElementById('analysis-name-inp').value = auto;
+  document.getElementById('an-modelo').value = '';
+  document.getElementById('an-firmware').value = '';
+  document.querySelector('input[name="an-piloto"][value="alfas"]').checked = true;
+  updateAnNamePreview();
+  ['an-modelo','an-firmware'].forEach(id =>
+    document.getElementById(id).addEventListener('input', updateAnNamePreview));
+  document.querySelectorAll('input[name="an-piloto"]').forEach(r =>
+    r.addEventListener('change', updateAnNamePreview));
   document.getElementById('save-analysis-overlay').style.display = 'flex';
 }
 
 async function doSaveAnalysis() {
-  const name = document.getElementById('analysis-name-inp').value.trim() ||
-    ('Análise_' + new Date().toLocaleDateString('pt'));
+  const modelo   = document.getElementById('an-modelo').value.trim();
+  const firmware = document.getElementById('an-firmware').value.trim();
+  const piloto   = document.querySelector('input[name="an-piloto"]:checked')?.value || 'alfas';
+  const baseName = buildAnalysisName(modelo, firmware, piloto);
   document.getElementById('save-analysis-overlay').style.display = 'none';
   const list = await getSavedAnalyses();
+  // deduplicate: find highest suffix for this base
+  const existing = list.map(a => a.name).filter(n => n === baseName || n.startsWith(baseName + '_'));
+  let name = baseName;
+  if (existing.length > 0) {
+    const suffixes = existing.map(n => {
+      const m = n.slice(baseName.length);
+      return m === '' ? 0 : (parseInt(m.slice(1)) || 0);
+    });
+    name = baseName + '_' + (Math.max(...suffixes) + 1);
+  }
   list.push({
     name,
     date: new Date().toISOString(),

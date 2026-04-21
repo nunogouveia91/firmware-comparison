@@ -1,6 +1,6 @@
 # PRD — Firmware Comparison Tool
 
-**Versão:** 1.2  
+**Versão:** 1.3  
 **Data:** 2026-04-21  
 **Branch:** dev  
 
@@ -39,7 +39,8 @@ Aplicação web de página única (SPA) para comparação de exports CSV de firm
 - Labels personalizados por grupo
 - Definição de número de unidades por grupo
 - Guardar/carregar datasets e análises completas (IndexedDB)
-- Nome de análise gerado automaticamente com campos: **Modelo**, **Firmware**, **Tipo de Piloto** (alfas/betas); formato `YYYY-MM-DD_modelo_firmware_piloto`; conflitos resolvidos com sufixo `_1`, `_2`, etc.
+- Nome de análise gerado automaticamente com campos: **Modelo**, **Firmware Control/Antes**, **Firmware Upgrade/Depois**, **Tipo de Piloto** (alfas/betas); formato `YYYY-MM-DD_modelo_fw-control_fw-upgrade_piloto`; conflitos resolvidos com sufixo `_1`, `_2`, etc.
+- Nome de dataset de firmware gerado com: **Modelo**, **Firmware**, **Tipo de Piloto**; mesmo formato e deduplication
 - Export ZIP de análises
 
 ### 4.2 Comparação Directa
@@ -130,3 +131,4 @@ README.md           → Documentação pública
 | 2026-04-21 | 1.0 | Criação inicial do PRD |
 | 2026-04-21 | 1.1 | Toggle ZIP upload na tab Carregar Dados |
 | 2026-04-21 | 1.2 | Nome estruturado ao guardar análise (modelo + firmware + piloto) |
+| 2026-04-21 | 1.3 | Análise com fw_control + fw_upgrade separados; dialog de nome para datasets |

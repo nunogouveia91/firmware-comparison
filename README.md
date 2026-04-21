@@ -108,6 +108,9 @@ After deploying, each user's memory stays local to their own browser.
 ├── app.py              # Flask server for local development (serves src/ as static files)
 ├── requirements.txt    # Python dependencies (flask only)
 ├── AGENTS.md           # AI agent instructions (architecture, conventions, pitfalls)
+├── PRD.md              # Product Requirements Document
+├── .github/
+│   └── copilot-instructions.md  # Copilot instructions (followed on every commit)
 └── src/
     └── comparador.html # Complete application (HTML + CSS + JS, no build step)
 ```

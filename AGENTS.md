@@ -11,9 +11,12 @@ Single-page web application for comparing firmware CSV exports. The entire appli
 ```
 app.py              → Flask: serves src/ as static files (local development only)
 requirements.txt    → flask>=2.3
+.github/
+  copilot-instructions.md  → Copilot instructions (followed on every commit)
 src/
   comparador.html   → Complete app (HTML + CSS + JS, no build step)
 uploads/            → Not used at runtime (legacy folder)
+PRD.md              → Product Requirements Document
 ```
 
 **All development happens in `src/comparador.html`.**

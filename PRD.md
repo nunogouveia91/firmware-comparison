@@ -1,6 +1,6 @@
 # PRD — Firmware Comparison Tool
 
-**Versão:** 1.3  
+**Versão:** 1.4  
 **Data:** 2026-04-21  
 **Branch:** dev  
 
@@ -132,3 +132,4 @@ README.md           → Documentação pública
 | 2026-04-21 | 1.1 | Toggle ZIP upload na tab Carregar Dados |
 | 2026-04-21 | 1.2 | Nome estruturado ao guardar análise (modelo + firmware + piloto) |
 | 2026-04-21 | 1.3 | Análise com fw_control + fw_upgrade separados; dialog de nome para datasets |
+| 2026-04-21 | 1.4 | Botão “Dados Guardados” unifica Análises e Firmwares num único painel com toggle interno |

@@ -233,24 +233,21 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
 </div>
 
 <!-- Load analysis panel -->
-<div id="load-analysis-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;min-width:400px;max-width:560px;width:92%;max-height:80vh;display:flex;flex-direction:column">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-      <span style="font-size:.9rem;font-weight:700;flex:1">📂 Análises Guardadas</span>
-      <button class="remove" onclick="document.getElementById('load-analysis-overlay').style.display='none'" style="font-size:1rem">✕</button>
+<div id="saved-data-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;min-width:400px;max-width:580px;width:92%;max-height:80vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <span style="font-size:.9rem;font-weight:700;flex:1">🗄️ Dados Guardados</span>
+      <button class="remove" onclick="document.getElementById('saved-data-overlay').style.display='none'" style="font-size:1rem">✕</button>
+    </div>
+    <!-- inner toggle -->
+    <div style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px;gap:2px;margin-bottom:14px;align-self:flex-start">
+      <button id="sd-btn-analyses" onclick="setSavedDataTab('analyses')"
+        style="border:none;border-radius:16px;padding:4px 16px;font-size:.78rem;cursor:pointer;font-weight:600;background:var(--accent1);color:#fff;transition:all .15s">📂 Análises</button>
+      <button id="sd-btn-fw" onclick="setSavedDataTab('fw')"
+        style="border:none;border-radius:16px;padding:4px 16px;font-size:.78rem;cursor:pointer;font-weight:600;background:transparent;color:var(--muted);transition:all .15s">💾 Firmwares</button>
     </div>
     <div id="saved-analyses-list" style="overflow-y:auto;flex:1"></div>
-  </div>
-</div>
-
-<!-- FW saved panel -->
-<div id="fw-saved-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:flex-start;justify-content:center;padding-top:80px">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;min-width:380px;max-width:580px;width:92%;max-height:70vh;display:flex;flex-direction:column">
-    <div style="display:flex;align-items:center;margin-bottom:14px">
-      <span style="font-size:.9rem;font-weight:700;flex:1">💾 Firmwares Guardados</span>
-      <button class="remove" onclick="document.getElementById('fw-saved-overlay').style.display='none'" style="font-size:1rem">✕</button>
-    </div>
-    <div id="fw-saved-list" style="overflow-y:auto;flex:1"></div>
+    <div id="fw-saved-list" style="overflow-y:auto;flex:1;display:none"></div>
   </div>
 </div>
 
@@ -296,10 +293,7 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
       </div>
       <div style="flex:1"></div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
-        <button onclick="showFWSavedPanel()" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">💾 Firmwares Guardados</button>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
-        <button onclick="showLoadAnalysisPanel()" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">📂 Análises Guardadas</button>
+        <button onclick="showSavedDataPanel('analyses')" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">🗄️ Dados Guardados</button>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
         <button onclick="showSaveAnalysisDialog()" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">💾 Guardar Análise</button>
@@ -3134,10 +3128,32 @@ async function loadDataset(fw, idx) {
   refreshAll();
 }
 
+function setSavedDataTab(tab) {
+  const isAn = tab === 'analyses';
+  document.getElementById('saved-analyses-list').style.display = isAn ? '' : 'none';
+  document.getElementById('fw-saved-list').style.display        = isAn ? 'none' : '';
+  const btnAn = document.getElementById('sd-btn-analyses');
+  const btnFw = document.getElementById('sd-btn-fw');
+  btnAn.style.background = isAn ? 'var(--accent1)' : 'transparent';
+  btnAn.style.color      = isAn ? '#fff' : 'var(--muted)';
+  btnFw.style.background = isAn ? 'transparent' : 'var(--accent1)';
+  btnFw.style.color      = isAn ? 'var(--muted)' : '#fff';
+}
+
+async function showSavedDataPanel(tab) {
+  tab = tab || 'analyses';
+  setSavedDataTab(tab);
+  document.getElementById('saved-data-overlay').style.display = 'flex';
+  if (tab === 'analyses') await renderSavedAnalysesList();
+  else await renderFWSavedList();
+}
+
 async function showFWSavedPanel() {
-  const overlay = document.getElementById('fw-saved-overlay');
-  overlay.style.display = 'flex';
-  await renderFWSavedList();
+  await showSavedDataPanel('fw');
+}
+
+function showLoadAnalysisPanel() {
+  showSavedDataPanel('analyses');
 }
 
 async function renderFWSavedList() {
@@ -3179,7 +3195,7 @@ async function loadDatasetTo(srcFw, srcIdx, targetFw) {
   S[targetFw] = saved.files.map(f => ({ ...f }));
   renderLists();
   refreshAll();
-  document.getElementById('fw-saved-overlay').style.display = 'none';
+  document.getElementById('saved-data-overlay').style.display = 'none';
 }
 
 async function deleteFWSaved(fw, idx) {
@@ -3296,8 +3312,7 @@ async function doSaveAnalysis() {
 }
 
 function showLoadAnalysisPanel() {
-  renderSavedAnalysesList();
-  document.getElementById('load-analysis-overlay').style.display = 'flex';
+  showSavedDataPanel('analyses');
 }
 
 async function loadAnalysis(idx) {
@@ -3331,7 +3346,7 @@ async function loadAnalysis(idx) {
   if (ucTabEl) ucTabEl.value = unitsControl != null ? unitsControl : '';
   if (dfEl) dfEl.value = globalDateFrom ? new Date(globalDateFrom).toISOString().slice(0, 16) : '';
   if (dtEl) dtEl.value = globalDateTo   ? new Date(globalDateTo).toISOString().slice(0, 16)   : '';
-  document.getElementById('load-analysis-overlay').style.display = 'none';
+  document.getElementById('saved-data-overlay').style.display = 'none';
   renderLists();
   renderSettings();
   renderClusterTab();

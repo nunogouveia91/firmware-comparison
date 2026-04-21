@@ -54,7 +54,7 @@ No build step, no npm, no compilation. Edit and refresh.
 | `unitsControl` | Control / Antes units | Device count for FW-A |
 
 ### Tabs
-- **Carregar Dados** — file upload; toggle between "Dois Grupos" mode (FW-A left, FW-B right) and "ZIP" mode (single ZIP with `Firmware_A_Control/` + `Firmware_B_Upgrade/` folders)
+- **Carregar Dados** — file upload; toggle between "Dois Grupos" mode (FW-A left, FW-B right) and "ZIP" mode (single ZIP with `Firmware_A_Control/` + `Firmware_B_Upgrade/` folders); button "Dados Guardados" opens a unified panel with inner toggle between Análises and Firmwares (default: Análises)
 - **Comparação → Comparação Direta** — side-by-side average comparison with classification
 - **Comparação → Comparação Temporal** — time-series chart; supports misaligned time periods via position-based alignment (`alignedPairs`)
 - **Evolução** — per-indicator statistical metrics (score, growth, rate, var.abs, std dev, signal) with pagination

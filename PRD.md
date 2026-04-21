@@ -1,6 +1,6 @@
 # PRD — Firmware Comparison Tool
 
-**Versão:** 1.0  
+**Versão:** 1.1  
 **Data:** 2026-04-21  
 **Branch:** dev  
 
@@ -34,6 +34,8 @@ Aplicação web de página única (SPA) para comparação de exports CSV de firm
 ### 4.1 Carregar Dados
 - Upload de múltiplos CSVs por grupo (FW-A e FW-B)
 - Drag-and-drop e file picker
+- **Toggle de modo de carregamento**: "Dois Grupos" (default) ou "ZIP"
+  - Modo ZIP: carrega um único `.zip` com estrutura `Firmware_A_Control/` + `Firmware_B_Upgrade/`; distribui automaticamente os CSVs pelos grupos correctos
 - Labels personalizados por grupo
 - Definição de número de unidades por grupo
 - Guardar/carregar datasets e análises completas (IndexedDB)
@@ -125,3 +127,4 @@ README.md           → Documentação pública
 | Data | Versão | Descrição |
 |---|---|---|
 | 2026-04-21 | 1.0 | Criação inicial do PRD |
+| 2026-04-21 | 1.1 | Toggle ZIP upload na tab Carregar Dados |

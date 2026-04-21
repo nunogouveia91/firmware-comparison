@@ -2068,16 +2068,6 @@ function renderSettings() {
           <span style="color:var(--muted);font-size:.8rem">valor absoluto</span>
         </div>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Como funciona a comparação</div>
-      <p style="color:var(--muted);font-size:.8rem;line-height:1.7">
-        <strong>Fórmula:</strong> <code style="color:var(--accent1)">(FW1 − FW2) / |FW2| × 100</code><br>
-        <span style="color:var(--fail)">Positivo</span> → FW1 tem mais erros que FW2 → <strong>MAU</strong><br>
-        <span style="color:var(--improv)">Negativo</span> → FW1 tem menos erros que FW2 → <strong>BOM</strong><br><br>
-        <strong>Exemplo:</strong> FW1=110, FW2=100 → +10% → ${CFG.failThresholds.find(t=>t.pct<=10)?.name||'Atenção'}<br>
-        FW1=85, FW2=100 → −15% → ${-15 <= CFG.improvThreshold ? 'Melhoria' : 'OK'}
-      </p>
     </div>`;
 
   const clusters = `

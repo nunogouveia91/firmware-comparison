@@ -151,7 +151,8 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
   <h1 style="font-size:1rem;font-weight:700;white-space:nowrap;flex-shrink:0">📊 Comparador de Firmware</h1>
   <div class="tabs" style="flex:1;min-width:0">
     <button class="tab-btn active" data-tab="upload">📂 Carregar Dados</button>
-    <button class="tab-btn" data-tab="comparacao">⚖️ Comparação</button>
+    <button class="tab-btn" data-tab="diferencas">⚖️ Diferenças</button>
+    <button class="tab-btn" data-tab="variacao">📈 Variação</button>
     <button class="tab-btn" data-tab="evolstats">📊 Evolução</button>
     <button class="tab-btn" data-tab="data">📋 Dados</button>
     <button class="tab-btn" data-tab="settings">⚙️ Definições</button>
@@ -389,49 +390,73 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
   </div>
 </div>
 
-<div class="tab-panel" id="tab-comparacao">
-  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:10px" id="comparacao-sub-nav">
-    <button class="tab-btn subtab-btn active" style="font-size:.78rem;padding:5px 14px" data-subtab="compare" onclick="activateSubTab('compare')">⚖️ Comparação Direta</button>
-    <button class="tab-btn subtab-btn" style="font-size:.78rem;padding:5px 14px" data-subtab="evolution" onclick="activateSubTab('evolution')">📈 Comparação Temporal</button>
-  </div>
-  <!-- Comparação Direta -->
-  <div id="subtab-compare" class="subtab-panel subtab-active">
-    <div class="empty" id="compare-empty"><div class="ei">⚖️</div>Carrega ficheiros nos dois grupos para comparar</div>
-    <div id="compare-content" style="display:none">
-      <div id="cmp-clusters-panel"></div>
-      <div id="cmp-hidden-banner"></div>
-      <div id="cmp-conda-banner"></div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-        <select id="cmpv-select" onchange="setCmpView(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:.79rem;cursor:pointer;min-width:180px">
-          <option value="all">⚡ Principais Diferenças</option>
-          <option value="fails">🔴 Falhas</option>
-          <option value="improvs">🟢 Melhorias</option>
-          <option value="nd">— Sem Dados</option>
-          <option value="todos">📋 Todos</option>
-        </select>
-        <select id="cmpv-cluster-select" onchange="cmpClusterFilter=this.value||null;renderCmpView()" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:.79rem;cursor:pointer;min-width:140px"></select>
-      </div>
-      <div id="cmp-cluster-filters" style="display:none"></div>
-      <div class="card">
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr>
-              <th>Indicador</th>
-              <th id="cmp-th-fw2" style="color:var(--accent2)">FW-A — Control</th>
-              <th id="cmp-th-fw1" style="color:var(--accent1)">FW-B — Upgrade</th>
-              <th>Comparação</th>
-              <th>Estado</th>
-            </tr></thead>
-            <tbody id="cmp-body"></tbody>
-          </table>
-        </div>
+<!-- ── DIFERENÇAS ─────────────────────────────────────────────── -->
+<div class="tab-panel" id="tab-diferencas">
+  <!-- Glossário -->
+  <details style="margin-bottom:14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px">
+    <summary style="font-size:.8rem;font-weight:700;cursor:pointer;color:var(--muted)">ℹ️ O que é esta tab?</summary>
+    <div style="margin-top:8px;font-size:.79rem;color:var(--muted);line-height:1.6">
+      <p style="margin:0 0 6px">Compara as <strong>médias de cada indicador</strong> entre FW-A (Control/Antes) e FW-B (Upgrade/Depois) num único snapshot.</p>
+      <p style="margin:0 0 6px">Cada linha mostra o valor médio de cada grupo, a variação percentual (Δ%) e a classificação automática:</p>
+      <ul style="margin:0 0 6px;padding-left:18px">
+        <li>🔴 <strong>Blocker / Major</strong> — degradação acima dos limiares configurados</li>
+        <li>🟡 <strong>Atenção</strong> — degradação moderada</li>
+        <li>🟢 <strong>Good</strong> — melhoria além do limiar positivo</li>
+        <li>✅ <strong>OK</strong> — dentro do intervalo aceitável</li>
+        <li><strong>S/D</strong> — sem dados num ou ambos os grupos</li>
+      </ul>
+      <p style="margin:0">Útil para uma visão geral rápida do impacto do firmware em todos os indicadores.</p>
+    </div>
+  </details>
+  <div class="empty" id="compare-empty"><div class="ei">⚖️</div>Carrega ficheiros nos dois grupos para comparar</div>
+  <div id="compare-content" style="display:none">
+    <div id="cmp-clusters-panel"></div>
+    <div id="cmp-hidden-banner"></div>
+    <div id="cmp-conda-banner"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <select id="cmpv-select" onchange="setCmpView(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:.79rem;cursor:pointer;min-width:180px">
+        <option value="all">⚡ Principais Diferenças</option>
+        <option value="fails">🔴 Falhas</option>
+        <option value="improvs">🟢 Melhorias</option>
+        <option value="nd">— Sem Dados</option>
+        <option value="todos">📋 Todos</option>
+      </select>
+      <select id="cmpv-cluster-select" onchange="cmpClusterFilter=this.value||null;renderCmpView()" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:.79rem;cursor:pointer;min-width:140px"></select>
+    </div>
+    <div id="cmp-cluster-filters" style="display:none"></div>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Indicador</th>
+            <th id="cmp-th-fw2" style="color:var(--accent2)">FW-A — Control</th>
+            <th id="cmp-th-fw1" style="color:var(--accent1)">FW-B — Upgrade</th>
+            <th>Comparação</th>
+            <th>Estado</th>
+          </tr></thead>
+          <tbody id="cmp-body"></tbody>
+        </table>
       </div>
     </div>
   </div>
-  <!-- Comparação Temporal -->
-  <div id="subtab-evolution" class="subtab-panel" style="display:none">
-    <div id="evo2-root"></div>
-  </div>
+</div>
+
+<!-- ── VARIAÇÃO ───────────────────────────────────────────────── -->
+<div class="tab-panel" id="tab-variacao">
+  <!-- Glossário -->
+  <details style="margin-bottom:14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px">
+    <summary style="font-size:.8rem;font-weight:700;cursor:pointer;color:var(--muted)">ℹ️ O que é esta tab?</summary>
+    <div style="margin-top:8px;font-size:.79rem;color:var(--muted);line-height:1.6">
+      <p style="margin:0 0 6px">Mostra a <strong>evolução temporal</strong> de cada indicador para FW-A e FW-B ao longo do tempo, num gráfico de linha.</p>
+      <p style="margin:0 0 6px">Dois modos de visualização:</p>
+      <ul style="margin:0 0 6px;padding-left:18px">
+        <li><strong>Períodos Cruzados</strong> (default) — alinha os dois períodos por posição relativa (+0h, +4h…). Ideal para cenários antes/depois onde os timestamps não se sobrepõem.</li>
+        <li><strong>Períodos Separados</strong> — cada grupo é plotado nos seus timestamps reais num eixo X partilhado.</li>
+      </ul>
+      <p style="margin:0">O Δ% exibido usa sempre o alinhamento posicional. Útil para detectar tendências e padrões de degradação ao longo do tempo.</p>
+    </div>
+  </details>
+  <div id="evo2-root"></div>
 </div>
 
 <!-- ── FAILS ──────────────────────────────────────────────────── -->
@@ -1204,8 +1229,7 @@ function runComparison() {
 
   renderCmpView();
   renderClusterResults();
-  if (document.getElementById('subtab-evolution')?.style.display !== 'none' &&
-      document.getElementById('tab-comparacao')?.classList.contains('active')) renderEvo2();
+  if (document.getElementById('tab-variacao')?.classList.contains('active')) renderEvo2();
 }
 
 // renderCompareFiltered kept as alias for backwards compatibility
@@ -1480,7 +1504,7 @@ function renderComparison(rows, filter) {
   const rowCls = r => r.cls.level === 'fail' ? 'row-fail' : r.cls.level === 'warn' ? 'row-warn' : r.cls.level === 'improv' ? 'row-improv' : '';
   const banner = hiddenBanner();
   // inject banner above table if needed
-  const wrap = document.querySelector('#subtab-compare .tbl-wrap');
+  const wrap = document.querySelector('#tab-diferencas .tbl-wrap');
   const bannerEl = document.getElementById('cmp-hidden-banner');
   if (bannerEl) bannerEl.innerHTML = banner;
   body.innerHTML = vis.map(r => {
@@ -2883,21 +2907,11 @@ document.addEventListener('change', e => {
 // ═══════════════════════════════════════════════════════════════════
 // TABS
 // ═══════════════════════════════════════════════════════════════════
-function activateSubTab(id) {
-  document.querySelectorAll('#comparacao-sub-nav .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.subtab === id));
-  document.getElementById('subtab-compare').style.display  = id === 'compare'   ? '' : 'none';
-  document.getElementById('subtab-evolution').style.display = id === 'evolution' ? '' : 'none';
-  if (id === 'compare' && S.fw1.some(f=>f.included) && S.fw2.some(f=>f.included)) runComparison();
-  if (id === 'evolution') {
-    // Render after div is visible so Chart.js can measure canvas dimensions
-    requestAnimationFrame(() => renderEvo2());
-  }
-}
-
 function activateTab(id) {
   document.querySelectorAll('header .tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + id));
-  if (id === 'comparacao') { activateSubTab('compare'); if (S.fw1.some(f=>f.included) && S.fw2.some(f=>f.included)) runComparison(); }
+  if (id === 'diferencas') { if (S.fw1.some(f=>f.included) && S.fw2.some(f=>f.included)) runComparison(); }
+  if (id === 'variacao') { requestAnimationFrame(() => renderEvo2()); }
   if (id === 'settings') { renderSettings(); renderClusterTab(); }
   if (id === 'evolstats') renderEvolStats();
 }

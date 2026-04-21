@@ -1,6 +1,6 @@
 # PRD — Firmware Comparison Tool
 
-**Versão:** 1.5  
+**Versão:** 1.6  
 **Data:** 2026-04-21  
 **Branch:** dev  
 
@@ -51,7 +51,7 @@ Aplicação web de página única (SPA) para comparação de exports CSV de firm
 - Filtro por cluster; filtro "Desprezável"
 - Tags de tipo de indicador: acum., méd. dia, méd. hora
 
-### 4.3 Comparação Temporal
+### 4.3 Variação (ex-Comparação Temporal)
 - Gráfico de série temporal por indicador
 - Modo "Períodos Cruzados" (alinhamento por posição, para cenários antes/depois)
 - Modo "Períodos Separados" (timestamps reais em eixo X partilhado)
@@ -134,3 +134,4 @@ README.md           → Documentação pública
 | 2026-04-21 | 1.3 | Análise com fw_control + fw_upgrade separados; dialog de nome para datasets |
 | 2026-04-21 | 1.4 | Botão “Dados Guardados” unifica Análises e Firmwares num único painel com toggle interno |
 | 2026-04-21 | 1.5 | Botões “Guardar Firmware” reestilizados igual ao “Guardar Análise”, movidos para baixo de cada painel |
+| 2026-04-21 | 1.6 | Tabs “Diferenças” e “Variação” separadas; glossario em cada uma |

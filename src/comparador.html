@@ -168,20 +168,24 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
     <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
       <div>
         <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Modelo</label>
-        <input type="text" id="an-modelo" placeholder="ex: SGFc12000065E" style="width:100%">
+        <input type="text" id="an-modelo" placeholder="ex: SGFc12000065E" style="width:100%" oninput="updateAnNamePreview()">
       </div>
       <div>
-        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Firmware</label>
-        <input type="text" id="an-firmware" placeholder="ex: v6_ftth" style="width:100%">
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">🟠 Firmware Control / Antes</label>
+        <input type="text" id="an-fw-control" placeholder="ex: v5_ftth" style="width:100%" oninput="updateAnNamePreview()">
+      </div>
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">🔵 Firmware Upgrade / Depois</label>
+        <input type="text" id="an-fw-upgrade" placeholder="ex: v6_ftth" style="width:100%" oninput="updateAnNamePreview()">
       </div>
       <div>
         <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Tipo de Piloto</label>
         <div style="display:flex;gap:8px">
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.85rem">
-            <input type="radio" name="an-piloto" value="alfas" checked> Alfas
+            <input type="radio" name="an-piloto" value="alfas" checked onchange="updateAnNamePreview()"> Alfas
           </label>
           <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.85rem">
-            <input type="radio" name="an-piloto" value="betas"> Betas
+            <input type="radio" name="an-piloto" value="betas" onchange="updateAnNamePreview()"> Betas
           </label>
         </div>
       </div>
@@ -191,6 +195,39 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
     <div style="display:flex;gap:8px">
       <button class="btn" onclick="doSaveAnalysis()" style="flex:1">Guardar</button>
       <button class="btn" onclick="document.getElementById('save-analysis-overlay').style.display='none'" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);flex:1">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Dataset save dialog -->
+<div id="save-dataset-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;min-width:320px;max-width:440px;width:90%">
+    <div style="font-size:.9rem;font-weight:700;margin-bottom:14px">💾 Guardar Firmware</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Modelo</label>
+        <input type="text" id="ds-modelo" placeholder="ex: SGFc12000065E" style="width:100%" oninput="updateDsNamePreview()">
+      </div>
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Firmware</label>
+        <input type="text" id="ds-firmware" placeholder="ex: v6_ftth" style="width:100%" oninput="updateDsNamePreview()">
+      </div>
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Tipo de Piloto</label>
+        <div style="display:flex;gap:8px">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.85rem">
+            <input type="radio" name="ds-piloto" value="alfas" checked onchange="updateDsNamePreview()"> Alfas
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.85rem">
+            <input type="radio" name="ds-piloto" value="betas" onchange="updateDsNamePreview()"> Betas
+          </label>
+        </div>
+      </div>
+    </div>
+    <div id="ds-name-preview" style="font-size:.75rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin-bottom:14px;font-family:monospace"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" onclick="doSaveDataset()" style="flex:1">Guardar</button>
+      <button class="btn" onclick="document.getElementById('save-dataset-overlay').style.display='none'" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);flex:1">Cancelar</button>
     </div>
   </div>
 </div>
@@ -3040,20 +3077,48 @@ async function getSavedDatasets() {
   catch(_) { return {fw1:[], fw2:[]}; }
 }
 
+// ── Dataset dialog ─────────────────────────────────────────────
+let _pendingDsFw = null;
+
+function updateDsNamePreview() {
+  const modelo   = document.getElementById('ds-modelo')?.value.trim() || '';
+  const firmware = document.getElementById('ds-firmware')?.value.trim() || '';
+  const piloto   = document.querySelector('input[name="ds-piloto"]:checked')?.value || 'alfas';
+  const base = buildStructuredName([modelo, firmware, piloto]);
+  document.getElementById('ds-name-preview').textContent = base || '—';
+}
+
 async function saveDataset(fw) {
   const files = S[fw];
   if (!files.length) { alert('Sem ficheiros carregados para guardar.'); return; }
-  const name = prompt('Nome para este set de dados:', 'Set_' + new Date().toLocaleDateString('pt'));
-  if (!name) return;
+  _pendingDsFw = fw;
+  document.getElementById('ds-modelo').value = '';
+  document.getElementById('ds-firmware').value = '';
+  document.querySelector('input[name="ds-piloto"][value="alfas"]').checked = true;
+  updateDsNamePreview();
+  document.getElementById('save-dataset-overlay').style.display = 'flex';
+}
+
+async function doSaveDataset() {
+  const fw = _pendingDsFw;
+  if (!fw) return;
+  const modelo   = document.getElementById('ds-modelo').value.trim();
+  const firmware = document.getElementById('ds-firmware').value.trim();
+  const piloto   = document.querySelector('input[name="ds-piloto"]:checked')?.value || 'alfas';
+  const baseName = buildStructuredName([modelo, firmware, piloto]);
+  document.getElementById('save-dataset-overlay').style.display = 'none';
   try {
     const ds = await getSavedDatasets();
+    const existingNames = ds[fw].map(d => d.name);
+    const name = await deduplicateName(baseName, existingNames);
     ds[fw].push({
       name,
       date: new Date().toISOString(),
-      files: files.map(f => ({ name: f.name, headers: f.headers, rows: f.rows, averages: f.averages, included: f.included }))
+      files: S[fw].map(f => ({ name: f.name, headers: f.headers, rows: f.rows, averages: f.averages, included: f.included }))
     });
     await IDB.set(DS_KEY, ds);
     await renderSavedDatasetsFrom(ds);
+    alert('✅ Firmware "' + name + '" guardado com sucesso.');
   } catch(e) {
     console.error('saveDataset error:', e);
     alert('Erro ao guardar: ' + (e && e.message ? e.message : e));
@@ -3167,52 +3232,52 @@ async function getSavedAnalyses() {
   catch(_) { return []; }
 }
 
-function buildAnalysisName(modelo, firmware, piloto) {
+function buildStructuredName(parts) {
   const d = new Date();
   const dateStr = d.getFullYear() + '-' +
     String(d.getMonth()+1).padStart(2,'0') + '-' +
     String(d.getDate()).padStart(2,'0');
-  const parts = [dateStr, modelo, firmware, piloto].filter(Boolean);
-  return parts.join('_');
+  return [dateStr, ...parts].filter(Boolean).join('_');
 }
 
+async function deduplicateName(baseName, existingNames) {
+  const matches = existingNames.filter(n => n === baseName || n.startsWith(baseName + '_'));
+  if (!matches.length) return baseName;
+  const suffixes = matches.map(n => {
+    const m = n.slice(baseName.length);
+    return m === '' ? 0 : (parseInt(m.slice(1)) || 0);
+  });
+  return baseName + '_' + (Math.max(...suffixes) + 1);
+}
+
+// ── Analysis dialog ────────────────────────────────────────────
 function updateAnNamePreview() {
-  const modelo  = document.getElementById('an-modelo')?.value.trim() || '';
-  const firmware = document.getElementById('an-firmware')?.value.trim() || '';
-  const piloto  = document.querySelector('input[name="an-piloto"]:checked')?.value || 'alfas';
-  const base = buildAnalysisName(modelo, firmware, piloto);
+  const modelo    = document.getElementById('an-modelo')?.value.trim() || '';
+  const fwControl = document.getElementById('an-fw-control')?.value.trim() || '';
+  const fwUpgrade = document.getElementById('an-fw-upgrade')?.value.trim() || '';
+  const piloto    = document.querySelector('input[name="an-piloto"]:checked')?.value || 'alfas';
+  const base = buildStructuredName([modelo, fwControl, fwUpgrade, piloto]);
   document.getElementById('an-name-preview').textContent = base || '—';
 }
 
 function showSaveAnalysisDialog() {
   document.getElementById('an-modelo').value = '';
-  document.getElementById('an-firmware').value = '';
+  document.getElementById('an-fw-control').value = '';
+  document.getElementById('an-fw-upgrade').value = '';
   document.querySelector('input[name="an-piloto"][value="alfas"]').checked = true;
   updateAnNamePreview();
-  ['an-modelo','an-firmware'].forEach(id =>
-    document.getElementById(id).addEventListener('input', updateAnNamePreview));
-  document.querySelectorAll('input[name="an-piloto"]').forEach(r =>
-    r.addEventListener('change', updateAnNamePreview));
   document.getElementById('save-analysis-overlay').style.display = 'flex';
 }
 
 async function doSaveAnalysis() {
-  const modelo   = document.getElementById('an-modelo').value.trim();
-  const firmware = document.getElementById('an-firmware').value.trim();
-  const piloto   = document.querySelector('input[name="an-piloto"]:checked')?.value || 'alfas';
-  const baseName = buildAnalysisName(modelo, firmware, piloto);
+  const modelo    = document.getElementById('an-modelo').value.trim();
+  const fwControl = document.getElementById('an-fw-control').value.trim();
+  const fwUpgrade = document.getElementById('an-fw-upgrade').value.trim();
+  const piloto    = document.querySelector('input[name="an-piloto"]:checked')?.value || 'alfas';
+  const baseName  = buildStructuredName([modelo, fwControl, fwUpgrade, piloto]);
   document.getElementById('save-analysis-overlay').style.display = 'none';
   const list = await getSavedAnalyses();
-  // deduplicate: find highest suffix for this base
-  const existing = list.map(a => a.name).filter(n => n === baseName || n.startsWith(baseName + '_'));
-  let name = baseName;
-  if (existing.length > 0) {
-    const suffixes = existing.map(n => {
-      const m = n.slice(baseName.length);
-      return m === '' ? 0 : (parseInt(m.slice(1)) || 0);
-    });
-    name = baseName + '_' + (Math.max(...suffixes) + 1);
-  }
+  const name = await deduplicateName(baseName, list.map(a => a.name));
   list.push({
     name,
     date: new Date().toISOString(),

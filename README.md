@@ -8,6 +8,7 @@ A single-page web application for comparing two sets of firmware CSV exports sid
 
 ### 📂 Carregar Dados
 - Upload multiple CSV files per group: **FW-A (Control / Antes)** on the left, **FW-B (Upgrade / Depois)** on the right
+- **Load mode toggle**: "Dois Grupos" (default, two separate drop zones) or "ZIP" (single `.zip` with `Firmware_A_Control/` and `Firmware_B_Upgrade/` folders; auto-distributes CSVs to the correct group)
 - Drag-and-drop or file picker support
 - Name each group with a custom label
 - Define number of units per group (used for the "desprezável" filter)
@@ -108,6 +109,9 @@ After deploying, each user's memory stays local to their own browser.
 ├── app.py              # Flask server for local development (serves src/ as static files)
 ├── requirements.txt    # Python dependencies (flask only)
 ├── AGENTS.md           # AI agent instructions (architecture, conventions, pitfalls)
+├── PRD.md              # Product Requirements Document
+├── .github/
+│   └── copilot-instructions.md  # Copilot instructions (followed on every commit)
 └── src/
     └── comparador.html # Complete application (HTML + CSS + JS, no build step)
 ```

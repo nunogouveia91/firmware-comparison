@@ -151,7 +151,8 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
   <h1 style="font-size:1rem;font-weight:700;white-space:nowrap;flex-shrink:0">📊 Comparador de Firmware</h1>
   <div class="tabs" style="flex:1;min-width:0">
     <button class="tab-btn active" data-tab="upload">📂 Carregar Dados</button>
-    <button class="tab-btn" data-tab="comparacao">⚖️ Comparação</button>
+    <button class="tab-btn" data-tab="diferencas">⚖️ Diferenças</button>
+    <button class="tab-btn" data-tab="variacao">📈 Variação</button>
     <button class="tab-btn" data-tab="evolstats">📊 Evolução</button>
     <button class="tab-btn" data-tab="data">📋 Dados</button>
     <button class="tab-btn" data-tab="settings">⚙️ Definições</button>
@@ -164,8 +165,33 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
 <!-- Analysis dialog -->
 <div id="save-analysis-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;min-width:340px;max-width:480px;width:90%">
-    <div style="font-size:.9rem;font-weight:700;margin-bottom:12px">💾 Guardar Análise</div>
-    <input type="text" id="analysis-name-inp" placeholder="Nome da análise (ex: FW_v3_vs_FW_v2)" style="width:100%;margin-bottom:10px">
+    <div style="font-size:.9rem;font-weight:700;margin-bottom:14px">💾 Guardar Análise</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Modelo</label>
+        <input type="text" id="an-modelo" placeholder="ex: SGFc12000065E" style="width:100%" oninput="updateAnNamePreview()">
+      </div>
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">🟠 Firmware Control / Antes</label>
+        <input type="text" id="an-fw-control" placeholder="ex: v5_ftth" style="width:100%" oninput="updateAnNamePreview()">
+      </div>
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">🔵 Firmware Upgrade / Depois</label>
+        <input type="text" id="an-fw-upgrade" placeholder="ex: v6_ftth" style="width:100%" oninput="updateAnNamePreview()">
+      </div>
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Tipo de Piloto</label>
+        <div style="display:flex;gap:8px">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.85rem">
+            <input type="radio" name="an-piloto" value="alfas" checked onchange="updateAnNamePreview()"> Alfas
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.85rem">
+            <input type="radio" name="an-piloto" value="betas" onchange="updateAnNamePreview()"> Betas
+          </label>
+        </div>
+      </div>
+    </div>
+    <div id="an-name-preview" style="font-size:.75rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin-bottom:14px;font-family:monospace"></div>
     <div style="font-size:.73rem;color:var(--muted);margin-bottom:14px">Inclui: dados carregados, comparação, período, clusters, limiares e configuração completa.</div>
     <div style="display:flex;gap:8px">
       <button class="btn" onclick="doSaveAnalysis()" style="flex:1">Guardar</button>
@@ -174,25 +200,55 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
   </div>
 </div>
 
-<!-- Load analysis panel -->
-<div id="load-analysis-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;min-width:400px;max-width:560px;width:92%;max-height:80vh;display:flex;flex-direction:column">
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-      <span style="font-size:.9rem;font-weight:700;flex:1">📂 Análises Guardadas</span>
-      <button class="remove" onclick="document.getElementById('load-analysis-overlay').style.display='none'" style="font-size:1rem">✕</button>
+<!-- Dataset save dialog -->
+<div id="save-dataset-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;min-width:320px;max-width:440px;width:90%">
+    <div style="font-size:.9rem;font-weight:700;margin-bottom:14px">💾 Guardar Firmware</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Modelo</label>
+        <input type="text" id="ds-modelo" placeholder="ex: SGFc12000065E" style="width:100%" oninput="updateDsNamePreview()">
+      </div>
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Firmware</label>
+        <input type="text" id="ds-firmware" placeholder="ex: v6_ftth" style="width:100%" oninput="updateDsNamePreview()">
+      </div>
+      <div>
+        <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">Tipo de Piloto</label>
+        <div style="display:flex;gap:8px">
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.85rem">
+            <input type="radio" name="ds-piloto" value="alfas" checked onchange="updateDsNamePreview()"> Alfas
+          </label>
+          <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:.85rem">
+            <input type="radio" name="ds-piloto" value="betas" onchange="updateDsNamePreview()"> Betas
+          </label>
+        </div>
+      </div>
     </div>
-    <div id="saved-analyses-list" style="overflow-y:auto;flex:1"></div>
+    <div id="ds-name-preview" style="font-size:.75rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin-bottom:14px;font-family:monospace"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn" onclick="doSaveDataset()" style="flex:1">Guardar</button>
+      <button class="btn" onclick="document.getElementById('save-dataset-overlay').style.display='none'" style="background:var(--surface2);color:var(--text);border:1px solid var(--border);flex:1">Cancelar</button>
+    </div>
   </div>
 </div>
 
-<!-- FW saved panel -->
-<div id="fw-saved-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:100;align-items:flex-start;justify-content:center;padding-top:80px">
-  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:20px;min-width:380px;max-width:580px;width:92%;max-height:70vh;display:flex;flex-direction:column">
-    <div style="display:flex;align-items:center;margin-bottom:14px">
-      <span style="font-size:.9rem;font-weight:700;flex:1">💾 Firmwares Guardados</span>
-      <button class="remove" onclick="document.getElementById('fw-saved-overlay').style.display='none'" style="font-size:1rem">✕</button>
+<!-- Load analysis panel -->
+<div id="saved-data-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;align-items:center;justify-content:center">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:22px;min-width:400px;max-width:580px;width:92%;max-height:80vh;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+      <span style="font-size:.9rem;font-weight:700;flex:1">🗄️ Dados Guardados</span>
+      <button class="remove" onclick="document.getElementById('saved-data-overlay').style.display='none'" style="font-size:1rem">✕</button>
     </div>
-    <div id="fw-saved-list" style="overflow-y:auto;flex:1"></div>
+    <!-- inner toggle -->
+    <div style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px;gap:2px;margin-bottom:14px;align-self:flex-start">
+      <button id="sd-btn-analyses" onclick="setSavedDataTab('analyses')"
+        style="border:none;border-radius:16px;padding:4px 16px;font-size:.78rem;cursor:pointer;font-weight:600;background:var(--accent1);color:#fff;transition:all .15s">📂 Análises</button>
+      <button id="sd-btn-fw" onclick="setSavedDataTab('fw')"
+        style="border:none;border-radius:16px;padding:4px 16px;font-size:.78rem;cursor:pointer;font-weight:600;background:transparent;color:var(--muted);transition:all .15s">💾 Firmwares</button>
+    </div>
+    <div id="saved-analyses-list" style="overflow-y:auto;flex:1"></div>
+    <div id="fw-saved-list" style="overflow-y:auto;flex:1;display:none"></div>
   </div>
 </div>
 
@@ -238,23 +294,45 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
       </div>
       <div style="flex:1"></div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
-        <button onclick="showFWSavedPanel()" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">💾 Firmwares Guardados</button>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
-        <button onclick="showLoadAnalysisPanel()" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">📂 Análises Guardadas</button>
+        <button onclick="showSavedDataPanel('analyses')" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">🗄️ Dados Guardados</button>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
         <button onclick="showSaveAnalysisDialog()" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">💾 Guardar Análise</button>
       </div>
     </div>
+    <!-- mode toggle -->
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <span style="font-size:.8rem;color:var(--muted);font-weight:600">Modo de carregamento:</span>
+      <div id="upload-mode-toggle" style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px;gap:2px">
+        <button id="mode-btn-dual" onclick="setUploadMode('dual')"
+          style="border:none;border-radius:16px;padding:4px 14px;font-size:.78rem;cursor:pointer;font-weight:600;background:var(--accent1);color:#fff;transition:all .15s">📁 Dois Grupos</button>
+        <button id="mode-btn-zip" onclick="setUploadMode('zip')"
+          style="border:none;border-radius:16px;padding:4px 14px;font-size:.78rem;cursor:pointer;font-weight:600;background:transparent;color:var(--muted);transition:all .15s">🗜️ ZIP</button>
+      </div>
+    </div>
+
+    <!-- zip single drop zone (hidden by default) -->
+    <div id="zip-upload-zone" style="display:none;margin-bottom:12px">
+      <div class="drop-zone" id="drop-zip" style="padding:28px 20px;border-color:var(--accent1)">
+        <div class="di">🗜️</div>
+        <p style="font-size:.85rem;margin-top:6px">Arrastar ficheiro <strong>.zip</strong> aqui</p>
+        <p>ou clica para selecionar</p>
+        <p style="color:var(--muted);font-size:.72rem;margin-top:4px">Estrutura esperada: <code>Firmware_A_Control/</code> e <code>Firmware_B_Upgrade/</code></p>
+        <input type="file" id="inp-zip" accept=".zip">
+      </div>
+      <div id="zip-status" style="margin-top:8px;font-size:.8rem;color:var(--muted);text-align:center"></div>
+    </div>
+
     <!-- file panels -->
-    <div class="upload-grid">
+    <div class="upload-grid" id="dual-upload-grid">
       <div class="fw-panel fw2">
         <h2 style="display:flex;align-items:center;gap:6px">🟠
           <input type="text" id="fw2-label-tab" placeholder="Firmware A — Control / Antes"
             style="background:transparent;border:none;border-bottom:1px dashed var(--border);font:inherit;color:inherit;padding:0 4px;flex:1;min-width:0;font-size:.9rem"
             oninput="fw2Label=this.value;document.getElementById('fw2-label').value=this.value;updateFWHeaders()">
-          <button class="btn" style="padding:3px 9px;font-size:.72rem;flex-shrink:0" onclick="saveDataset('fw2')">+ Guardar</button>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;display:inline-flex;align-items:center;flex-shrink:0">
+            <button onclick="saveDataset('fw2')" style="background:none;border:none;color:var(--text);font-size:.8rem;cursor:pointer;white-space:nowrap;padding:0">💾 Guardar Firmware</button>
+          </div>
         </h2>
         <div class="fw-hint">Ficheiros CSV do firmware de referência / período antes</div>
         <div class="drop-zone" id="drop2-tab">
@@ -270,7 +348,9 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
           <input type="text" id="fw1-label-tab" placeholder="Firmware B — Upgrade / Depois"
             style="background:transparent;border:none;border-bottom:1px dashed var(--border);font:inherit;color:inherit;padding:0 4px;flex:1;min-width:0;font-size:.9rem"
             oninput="fw1Label=this.value;document.getElementById('fw1-label').value=this.value;updateFWHeaders()">
-          <button class="btn" style="padding:3px 9px;font-size:.72rem;flex-shrink:0" onclick="saveDataset('fw1')">+ Guardar</button>
+          <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;display:inline-flex;align-items:center;flex-shrink:0">
+            <button onclick="saveDataset('fw1')" style="background:none;border:none;color:var(--text);font-size:.8rem;cursor:pointer;white-space:nowrap;padding:0">💾 Guardar Firmware</button>
+          </div>
         </h2>
         <div class="fw-hint">Ficheiros CSV do firmware em avaliação / período depois</div>
         <div class="drop-zone" id="drop1-tab">
@@ -306,49 +386,73 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
   </div>
 </div>
 
-<div class="tab-panel" id="tab-comparacao">
-  <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--border);padding-bottom:10px" id="comparacao-sub-nav">
-    <button class="tab-btn subtab-btn active" style="font-size:.78rem;padding:5px 14px" data-subtab="compare" onclick="activateSubTab('compare')">⚖️ Comparação Direta</button>
-    <button class="tab-btn subtab-btn" style="font-size:.78rem;padding:5px 14px" data-subtab="evolution" onclick="activateSubTab('evolution')">📈 Comparação Temporal</button>
-  </div>
-  <!-- Comparação Direta -->
-  <div id="subtab-compare" class="subtab-panel subtab-active">
-    <div class="empty" id="compare-empty"><div class="ei">⚖️</div>Carrega ficheiros nos dois grupos para comparar</div>
-    <div id="compare-content" style="display:none">
-      <div id="cmp-clusters-panel"></div>
-      <div id="cmp-hidden-banner"></div>
-      <div id="cmp-conda-banner"></div>
-      <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-        <select id="cmpv-select" onchange="setCmpView(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:.79rem;cursor:pointer;min-width:180px">
-          <option value="all">⚡ Principais Diferenças</option>
-          <option value="fails">🔴 Falhas</option>
-          <option value="improvs">🟢 Melhorias</option>
-          <option value="nd">— Sem Dados</option>
-          <option value="todos">📋 Todos</option>
-        </select>
-        <select id="cmpv-cluster-select" onchange="cmpClusterFilter=this.value||null;renderCmpView()" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:.79rem;cursor:pointer;min-width:140px"></select>
-      </div>
-      <div id="cmp-cluster-filters" style="display:none"></div>
-      <div class="card">
-        <div class="tbl-wrap">
-          <table>
-            <thead><tr>
-              <th>Indicador</th>
-              <th id="cmp-th-fw1" style="color:var(--accent1)">FW-B — Upgrade</th>
-              <th id="cmp-th-fw2" style="color:var(--accent2)">FW-A — Control</th>
-              <th>Comparação</th>
-              <th>Estado</th>
-            </tr></thead>
-            <tbody id="cmp-body"></tbody>
-          </table>
-        </div>
+<!-- ── DIFERENÇAS ─────────────────────────────────────────────── -->
+<div class="tab-panel" id="tab-diferencas">
+  <!-- Glossário -->
+  <details style="margin-bottom:14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px">
+    <summary style="font-size:.8rem;font-weight:700;cursor:pointer;color:var(--muted)">ℹ️ O que é esta tab?</summary>
+    <div style="margin-top:8px;font-size:.79rem;color:var(--muted);line-height:1.6">
+      <p style="margin:0 0 6px">Compara as <strong>médias de cada indicador</strong> entre FW-A (Control/Antes) e FW-B (Upgrade/Depois) num único snapshot.</p>
+      <p style="margin:0 0 6px">Cada linha mostra o valor médio de cada grupo, a variação percentual (Δ%) e a classificação automática:</p>
+      <ul style="margin:0 0 6px;padding-left:18px">
+        <li>🔴 <strong>Blocker / Major</strong> — degradação acima dos limiares configurados</li>
+        <li>🟡 <strong>Atenção</strong> — degradação moderada</li>
+        <li>🟢 <strong>Good</strong> — melhoria além do limiar positivo</li>
+        <li>✅ <strong>OK</strong> — dentro do intervalo aceitável</li>
+        <li><strong>S/D</strong> — sem dados num ou ambos os grupos</li>
+      </ul>
+      <p style="margin:0">Útil para uma visão geral rápida do impacto do firmware em todos os indicadores.</p>
+    </div>
+  </details>
+  <div class="empty" id="compare-empty"><div class="ei">⚖️</div>Carrega ficheiros nos dois grupos para comparar</div>
+  <div id="compare-content" style="display:none">
+    <div id="cmp-clusters-panel"></div>
+    <div id="cmp-hidden-banner"></div>
+    <div id="cmp-conda-banner"></div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <select id="cmpv-select" onchange="setCmpView(this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:.79rem;cursor:pointer;min-width:180px">
+        <option value="all">⚡ Principais Diferenças</option>
+        <option value="fails">🔴 Falhas</option>
+        <option value="improvs">🟢 Melhorias</option>
+        <option value="nd">— Sem Dados</option>
+        <option value="todos">📋 Todos</option>
+      </select>
+      <select id="cmpv-cluster-select" onchange="cmpClusterFilter=this.value||null;renderCmpView()" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:7px;color:var(--text);padding:6px 10px;font-size:.79rem;cursor:pointer;min-width:140px"></select>
+    </div>
+    <div id="cmp-cluster-filters" style="display:none"></div>
+    <div class="card">
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th>Indicador</th>
+            <th id="cmp-th-fw2" style="color:var(--accent2)">FW-A — Control</th>
+            <th id="cmp-th-fw1" style="color:var(--accent1)">FW-B — Upgrade</th>
+            <th>Comparação</th>
+            <th>Estado</th>
+          </tr></thead>
+          <tbody id="cmp-body"></tbody>
+        </table>
       </div>
     </div>
   </div>
-  <!-- Comparação Temporal -->
-  <div id="subtab-evolution" class="subtab-panel" style="display:none">
-    <div id="evo2-root"></div>
-  </div>
+</div>
+
+<!-- ── VARIAÇÃO ───────────────────────────────────────────────── -->
+<div class="tab-panel" id="tab-variacao">
+  <!-- Glossário -->
+  <details style="margin-bottom:14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px">
+    <summary style="font-size:.8rem;font-weight:700;cursor:pointer;color:var(--muted)">ℹ️ O que é esta tab?</summary>
+    <div style="margin-top:8px;font-size:.79rem;color:var(--muted);line-height:1.6">
+      <p style="margin:0 0 6px">Mostra a <strong>evolução temporal</strong> de cada indicador para FW-A e FW-B ao longo do tempo, num gráfico de linha.</p>
+      <p style="margin:0 0 6px">Dois modos de visualização:</p>
+      <ul style="margin:0 0 6px;padding-left:18px">
+        <li><strong>Períodos Cruzados</strong> (default) — alinha os dois períodos por posição relativa (+0h, +4h…). Ideal para cenários antes/depois onde os timestamps não se sobrepõem.</li>
+        <li><strong>Períodos Separados</strong> — cada grupo é plotado nos seus timestamps reais num eixo X partilhado.</li>
+      </ul>
+      <p style="margin:0">O Δ% exibido usa sempre o alinhamento posicional. Útil para detectar tendências e padrões de degradação ao longo do tempo.</p>
+    </div>
+  </details>
+  <div id="evo2-root"></div>
 </div>
 
 <!-- ── FAILS ──────────────────────────────────────────────────── -->
@@ -942,7 +1046,7 @@ function refreshAll() {
   // Rebuild pills
   const pr = document.getElementById('pill-row');
   pr.innerHTML = '';
-  ['fw1', 'fw2'].forEach(fw => {
+  ['fw2', 'fw1'].forEach(fw => {
     S[fw].forEach((f, idx) => {
       const p = document.createElement('div');
       p.className = 'pill ' + fw;
@@ -1121,8 +1225,7 @@ function runComparison() {
 
   renderCmpView();
   renderClusterResults();
-  if (document.getElementById('subtab-evolution')?.style.display !== 'none' &&
-      document.getElementById('tab-comparacao')?.classList.contains('active')) renderEvo2();
+  if (document.getElementById('tab-variacao')?.classList.contains('active')) renderEvo2();
 }
 
 // renderCompareFiltered kept as alias for backwards compatibility
@@ -1135,6 +1238,7 @@ function updateFWHeaders() {
   const t2 = document.getElementById('cmp-th-fw2');
   if (t1) t1.textContent = l1;
   if (t2) t2.textContent = l2;
+  // keep FW-A always left of FW-B in the th elements (order set in HTML)
 }
 
 // ── View toggle ──
@@ -1225,7 +1329,7 @@ function renderCmpView() {
       style="background:none;border:none;cursor:pointer;padding:0 3px 0 0;font-size:.72rem;color:var(--muted);vertical-align:middle;line-height:1" tabindex="-1">🔗</button>`;
     return `<tr class="${cls}">
       <td>${hideBtn(r.h)}${dataLink}${esc(r.h)}${typeTag(r.h)}${clTag(r.cluster)}</td>
-      <td class="v1">${fmtNum(r.v1)}</td><td class="v2">${fmtNum(r.v2)}</td>
+      <td class="v2">${fmtNum(r.v2)}</td><td class="v1">${fmtNum(r.v1)}</td>
       <td>${pctHtml(r.pct, r.cls)}</td><td>${levelBadge(r.cls)}</td>
     </tr>`;
   }
@@ -1276,7 +1380,7 @@ function renderCmpView() {
       ? vis.map(r => `<tr class="${rowCls(r)}" style="opacity:.6">
           <td><button class="btn" style="padding:1px 7px;font-size:.68rem" onclick="hiddenRows.delete('${r.h.replace(/'/g,"&#39;")}');setCmpView('all')">↩</button>
             ${esc(r.h)}${typeTag(r.h)}${clTag(r.cluster)}</td>
-          <td class="v1">${fmtNum(r.v1)}</td><td class="v2">${fmtNum(r.v2)}</td>
+          <td class="v2">${fmtNum(r.v2)}</td><td class="v1">${fmtNum(r.v1)}</td>
           <td>${pctHtml(r.pct, r.cls)}</td><td>${levelBadge(r.cls)}</td>
         </tr>`).join('')
       : '<tr><td colspan="5" class="empty-row">Nenhum indicador escondido</td></tr>')
@@ -1396,7 +1500,7 @@ function renderComparison(rows, filter) {
   const rowCls = r => r.cls.level === 'fail' ? 'row-fail' : r.cls.level === 'warn' ? 'row-warn' : r.cls.level === 'improv' ? 'row-improv' : '';
   const banner = hiddenBanner();
   // inject banner above table if needed
-  const wrap = document.querySelector('#subtab-compare .tbl-wrap');
+  const wrap = document.querySelector('#tab-diferencas .tbl-wrap');
   const bannerEl = document.getElementById('cmp-hidden-banner');
   if (bannerEl) bannerEl.innerHTML = banner;
   body.innerHTML = vis.map(r => {
@@ -1404,8 +1508,8 @@ function renderComparison(rows, filter) {
       style="background:none;border:none;cursor:pointer;padding:0 3px 0 0;font-size:.72rem;color:var(--muted);vertical-align:middle;line-height:1" tabindex="-1">🔗</button>`;
     return `<tr class="${rowCls(r)}">
       <td>${hideBtn(r.h)}${dl}${esc(r.h)}${typeTag(r.h)}${clTag(r.cluster)}</td>
-      <td class="v1">${fmtNum(r.v1)}</td>
       <td class="v2">${fmtNum(r.v2)}</td>
+      <td class="v1">${fmtNum(r.v1)}</td>
       <td>${pctHtml(r.pct, r.cls)}</td>
       <td>${levelBadge(r.cls)}</td>
     </tr>`;
@@ -1446,8 +1550,8 @@ function renderFails(fails, warns) {
       style="background:none;border:none;cursor:pointer;padding:0 3px 0 0;font-size:.72rem;color:var(--muted);vertical-align:middle;line-height:1" tabindex="-1">🔗</button>`;
     return `<tr class="row-fail">
       <td>${hideBtn(r.h)}${dl}${esc(r.h)}${typeTag(r.h)}${clTag(r.cluster)}</td>
-      <td class="v1">${fmtNum(r.v1)}</td>
       <td class="v2">${fmtNum(r.v2)}</td>
+      <td class="v1">${fmtNum(r.v1)}</td>
       <td>${pctHtml(r.pct, r.cls)}</td>
       <td>${levelBadge(r.cls)}</td>
     </tr>`;
@@ -1474,8 +1578,8 @@ function renderImprovs(improvs) {
       style="background:none;border:none;cursor:pointer;padding:0 3px 0 0;font-size:.72rem;color:var(--muted);vertical-align:middle;line-height:1" tabindex="-1">🔗</button>`;
     return `<tr class="row-improv">
       <td>${hideBtn(r.h)}${dl}${esc(r.h)}${typeTag(r.h)}${clTag(r.cluster)}</td>
-      <td class="v1">${fmtNum(r.v1)}</td>
       <td class="v2">${fmtNum(r.v2)}</td>
+      <td class="v1">${fmtNum(r.v1)}</td>
       <td>${pctHtml(r.pct, r.cls)}</td>
     </tr>`;
   }).join('');
@@ -1964,16 +2068,6 @@ function renderSettings() {
           <span style="color:var(--muted);font-size:.8rem">valor absoluto</span>
         </div>
       </div>
-    </div>
-    <div class="card">
-      <div class="card-title">Como funciona a comparação</div>
-      <p style="color:var(--muted);font-size:.8rem;line-height:1.7">
-        <strong>Fórmula:</strong> <code style="color:var(--accent1)">(FW1 − FW2) / |FW2| × 100</code><br>
-        <span style="color:var(--fail)">Positivo</span> → FW1 tem mais erros que FW2 → <strong>MAU</strong><br>
-        <span style="color:var(--improv)">Negativo</span> → FW1 tem menos erros que FW2 → <strong>BOM</strong><br><br>
-        <strong>Exemplo:</strong> FW1=110, FW2=100 → +10% → ${CFG.failThresholds.find(t=>t.pct<=10)?.name||'Atenção'}<br>
-        FW1=85, FW2=100 → −15% → ${-15 <= CFG.improvThreshold ? 'Melhoria' : 'OK'}
-      </p>
     </div>`;
 
   const clusters = `
@@ -2246,8 +2340,8 @@ function generateReport() {
     return `<tr style="border-bottom:1px solid #f0f0f0">
       <td style="padding:5px 8px;font-size:11px;font-weight:600">${r.h}</td>
       <td style="padding:5px 8px;font-size:10px;color:#666">${r.cluster ? (sfIcon ? sfIcon + ' ' : '') + r.cluster : '—'}</td>
-      <td style="padding:5px 8px;font-size:11px;text-align:right">${r.v1 !== null ? r.v1.toLocaleString('pt-PT',{maximumFractionDigits:1}) : '—'}</td>
       <td style="padding:5px 8px;font-size:11px;text-align:right">${r.v2 !== null ? r.v2.toLocaleString('pt-PT',{maximumFractionDigits:1}) : '—'}</td>
+      <td style="padding:5px 8px;font-size:11px;text-align:right">${r.v1 !== null ? r.v1.toLocaleString('pt-PT',{maximumFractionDigits:1}) : '—'}</td>
       <td style="padding:5px 8px;font-size:11px;font-weight:700;color:${clrHex};text-align:right">${r.pct !== null ? (r.pct>=0?'+':'')+r.pct.toFixed(1)+'%' : '—'}</td>
       <td style="padding:5px 8px">${bar}</td>
       <td style="padding:5px 8px"><span style="background:${clrHex}22;color:${clrHex};border:1px solid ${clrHex}55;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:600">${r.cls.label}</span></td>
@@ -2262,8 +2356,8 @@ function generateReport() {
     return `<tr style="border-bottom:1px solid #f0f0f0">
       <td style="padding:5px 8px;font-size:11px;font-weight:600">${r.h}</td>
       <td style="padding:5px 8px;font-size:10px;color:#666">${r.cluster ? (impIcon ? impIcon + ' ' : '') + r.cluster : '—'}</td>
-      <td style="padding:5px 8px;font-size:11px;text-align:right">${r.v1 !== null ? r.v1.toLocaleString('pt-PT',{maximumFractionDigits:1}) : '—'}</td>
       <td style="padding:5px 8px;font-size:11px;text-align:right">${r.v2 !== null ? r.v2.toLocaleString('pt-PT',{maximumFractionDigits:1}) : '—'}</td>
+      <td style="padding:5px 8px;font-size:11px;text-align:right">${r.v1 !== null ? r.v1.toLocaleString('pt-PT',{maximumFractionDigits:1}) : '—'}</td>
       <td style="padding:5px 8px;font-size:11px;font-weight:700;color:${clrHex};text-align:right">${r.pct !== null ? r.pct.toFixed(1)+'%' : '—'}</td>
       <td style="padding:5px 8px">${bar}</td>
       <td style="padding:5px 8px"><span style="background:${clrHex}22;color:${clrHex};border:1px solid ${clrHex}55;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:600">${r.cls.label}</span></td>
@@ -2389,14 +2483,14 @@ ${clrData.length ? `<h2>📦 Resultados por Cluster</h2><div class="cl-grid">${c
 ${sigWarnsFails.length ? `
 <h2>🔴 Piorias Significativas${condASet.size ? ' <span style="font-size:10px;color:#94a3b8;font-weight:400">(excluindo Condição A)</span>' : ''} (${sigWarnsFails.length})</h2>
 <table>
-  <thead><tr><th style="min-width:110px">Indicador</th><th style="width:110px">Cluster</th><th style="width:72px;text-align:right">${l1}</th><th style="width:72px;text-align:right">${l2}</th><th style="width:52px;text-align:right">Δ%</th><th style="width:120px">Variação</th><th style="min-width:90px">Nível</th></tr></thead>
+  <thead><tr><th style="min-width:110px">Indicador</th><th style="width:110px">Cluster</th><th style="width:72px;text-align:right">${l2}</th><th style="width:72px;text-align:right">${l1}</th><th style="width:52px;text-align:right">Δ%</th><th style="width:120px">Variação</th><th style="min-width:90px">Nível</th></tr></thead>
   <tbody>${sfRows}</tbody>
 </table>` : `<h2 style="color:#22c55e">✅ Sem piorias significativas</h2>`}
 
 ${sigImprovs.length ? `
 <h2>🟢 Melhorias Significativas${condASet.size ? ' <span style="font-size:10px;color:#94a3b8;font-weight:400">(excluindo Condição A)</span>' : ''} (${sigImprovs.length})</h2>
 <table>
-  <thead><tr><th style="min-width:110px">Indicador</th><th style="width:110px">Cluster</th><th style="width:72px;text-align:right">${l1}</th><th style="width:72px;text-align:right">${l2}</th><th style="width:52px;text-align:right">Δ%</th><th style="width:120px">Variação</th><th style="min-width:90px">Nível</th></tr></thead>
+  <thead><tr><th style="min-width:110px">Indicador</th><th style="width:110px">Cluster</th><th style="width:72px;text-align:right">${l2}</th><th style="width:72px;text-align:right">${l1}</th><th style="width:52px;text-align:right">Δ%</th><th style="width:120px">Variação</th><th style="min-width:90px">Nível</th></tr></thead>
   <tbody>${impRows}</tbody>
 </table>` : ''}
 
@@ -2667,11 +2761,12 @@ function renderEvo2() {
           onclick="evo2Metric='values';renderEvo2()">Valores FW-A/FW-B</button>
         <button class="btn-toggle${metricDelta?' active-btn':''}" style="padding:3px 10px;font-size:.73rem"
           onclick="evo2Metric='delta';renderEvo2()">Δ% variação</button>
-        <span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 2px"></span>
+        ${!metricDelta ? `<span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 2px"></span>
         <button class="btn-toggle${!doAlign?' active-btn':''}" style="padding:3px 10px;font-size:.73rem"
           title="${doAlign ? 'Mudar para períodos separados (datas reais)' : 'Mudar para períodos cruzados (posição relativa)'}"
           onclick="evo2AlignMode=evo2AlignMode==='aligned'?'separate':'aligned';renderEvo2()">
-          ${doAlign ? '⇄ Cruzados' : '⧉ Separados'}</button>
+          ${doAlign ? '⇄ Cruzados' : '⧉ Separados'}</button>` : `<span style="width:1px;height:16px;background:var(--border);display:inline-block;margin:0 2px"></span>
+        <button class="btn-toggle active-btn" style="padding:3px 10px;font-size:.73rem;opacity:.5;cursor:default" disabled title="Δ% variação requer períodos combinados">⇄ Cruzados</button>`}
         <span style="font-size:.72rem;color:var(--muted);margin-left:8px">${numPeriods} períodos · ${selInds.length} ind.</span>
         ${alignNote}
       </div>
@@ -2798,21 +2893,11 @@ document.addEventListener('change', e => {
 // ═══════════════════════════════════════════════════════════════════
 // TABS
 // ═══════════════════════════════════════════════════════════════════
-function activateSubTab(id) {
-  document.querySelectorAll('#comparacao-sub-nav .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.subtab === id));
-  document.getElementById('subtab-compare').style.display  = id === 'compare'   ? '' : 'none';
-  document.getElementById('subtab-evolution').style.display = id === 'evolution' ? '' : 'none';
-  if (id === 'compare' && S.fw1.some(f=>f.included) && S.fw2.some(f=>f.included)) runComparison();
-  if (id === 'evolution') {
-    // Render after div is visible so Chart.js can measure canvas dimensions
-    requestAnimationFrame(() => renderEvo2());
-  }
-}
-
 function activateTab(id) {
   document.querySelectorAll('header .tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === id));
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + id));
-  if (id === 'comparacao') { activateSubTab('compare'); if (S.fw1.some(f=>f.included) && S.fw2.some(f=>f.included)) runComparison(); }
+  if (id === 'diferencas') { if (S.fw1.some(f=>f.included) && S.fw2.some(f=>f.included)) runComparison(); }
+  if (id === 'variacao') { requestAnimationFrame(() => renderEvo2()); }
   if (id === 'settings') { renderSettings(); renderClusterTab(); }
   if (id === 'evolstats') renderEvolStats();
 }
@@ -2824,6 +2909,69 @@ document.querySelectorAll('header .tabs .tab-btn').forEach(btn => {
 // ═══════════════════════════════════════════════════════════════════
 // FILE INPUT EVENTS
 // ═══════════════════════════════════════════════════════════════════
+
+// ── Upload mode toggle ──────────────────────────────────────────
+function setUploadMode(mode) {
+  const dual = document.getElementById('dual-upload-grid');
+  const zipZone = document.getElementById('zip-upload-zone');
+  const btnDual = document.getElementById('mode-btn-dual');
+  const btnZip  = document.getElementById('mode-btn-zip');
+  if (mode === 'zip') {
+    dual.style.display = 'none';
+    zipZone.style.display = '';
+    btnDual.style.background = 'transparent';
+    btnDual.style.color = 'var(--muted)';
+    btnZip.style.background = 'var(--accent1)';
+    btnZip.style.color = '#fff';
+  } else {
+    dual.style.display = '';
+    zipZone.style.display = 'none';
+    btnDual.style.background = 'var(--accent1)';
+    btnDual.style.color = '#fff';
+    btnZip.style.background = 'transparent';
+    btnZip.style.color = 'var(--muted)';
+  }
+}
+
+// ── ZIP loader ──────────────────────────────────────────────────
+function loadZip(file) {
+  if (!file) return;
+  const statusEl = document.getElementById('zip-status');
+  statusEl.textContent = '⏳ A carregar ZIP…';
+  const FOLDER_A = 'firmware_a_control/';
+  const FOLDER_B = 'firmware_b_upgrade/';
+  file.arrayBuffer().then(buf => JSZip.loadAsync(buf)).then(zip => {
+    const tasks = [];
+    let countA = 0, countB = 0;
+    zip.forEach((relPath, entry) => {
+      if (entry.dir) return;
+      const lower = relPath.toLowerCase();
+      let fw = null;
+      if (lower.startsWith(FOLDER_A)) fw = 'fw2';
+      else if (lower.startsWith(FOLDER_B)) fw = 'fw1';
+      else return; // ignore files outside expected folders
+      const baseName = relPath.split('/').pop();
+      if (!/\.(csv|txt)$/i.test(baseName)) return;
+      if (fw === 'fw2') countA++; else countB++;
+      tasks.push(
+        entry.async('string').then(text => {
+          const { headers, rows } = parseCSV(text);
+          const averages = computeAvg(headers, rows);
+          S[fw].push({ name: baseName, headers, rows, averages, included: true });
+        })
+      );
+    });
+    return Promise.all(tasks).then(() => ({ countA, countB }));
+  }).then(({ countA, countB }) => {
+    renderLists();
+    refreshAll();
+    statusEl.textContent = `✅ Carregados: ${countA} ficheiro(s) FW-A, ${countB} ficheiro(s) FW-B`;
+  }).catch(err => {
+    statusEl.textContent = `❌ Erro ao ler ZIP: ${err.message}`;
+  });
+}
+
+
 ['fw1', 'fw2'].forEach(fw => {
   const n = fw.slice(-1);
   const inp  = document.getElementById('inp-' + fw);
@@ -2851,6 +2999,18 @@ document.querySelectorAll('header .tabs .tab-btn').forEach(btn => {
       loadFiles(e.dataTransfer.files, fw);
     });
   }
+});
+
+// ── ZIP drop zone events ────────────────────────────────────────
+const inpZip  = document.getElementById('inp-zip');
+const dropZip = document.getElementById('drop-zip');
+inpZip.addEventListener('change', e => { loadZip(e.target.files[0]); inpZip.value = ''; });
+dropZip.addEventListener('dragover',  e => { e.preventDefault(); dropZip.classList.add('drag-over'); });
+dropZip.addEventListener('dragleave', () => dropZip.classList.remove('drag-over'));
+dropZip.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZip.classList.remove('drag-over');
+  loadZip(e.dataTransfer.files[0]);
 });
 
 document.getElementById('cmp-filter')?.addEventListener('input', renderCmpView);
@@ -2919,20 +3079,48 @@ async function getSavedDatasets() {
   catch(_) { return {fw1:[], fw2:[]}; }
 }
 
+// ── Dataset dialog ─────────────────────────────────────────────
+let _pendingDsFw = null;
+
+function updateDsNamePreview() {
+  const modelo   = document.getElementById('ds-modelo')?.value.trim() || '';
+  const firmware = document.getElementById('ds-firmware')?.value.trim() || '';
+  const piloto   = document.querySelector('input[name="ds-piloto"]:checked')?.value || 'alfas';
+  const base = buildStructuredName([modelo, firmware, piloto]);
+  document.getElementById('ds-name-preview').textContent = base || '—';
+}
+
 async function saveDataset(fw) {
   const files = S[fw];
   if (!files.length) { alert('Sem ficheiros carregados para guardar.'); return; }
-  const name = prompt('Nome para este set de dados:', 'Set_' + new Date().toLocaleDateString('pt'));
-  if (!name) return;
+  _pendingDsFw = fw;
+  document.getElementById('ds-modelo').value = '';
+  document.getElementById('ds-firmware').value = '';
+  document.querySelector('input[name="ds-piloto"][value="alfas"]').checked = true;
+  updateDsNamePreview();
+  document.getElementById('save-dataset-overlay').style.display = 'flex';
+}
+
+async function doSaveDataset() {
+  const fw = _pendingDsFw;
+  if (!fw) return;
+  const modelo   = document.getElementById('ds-modelo').value.trim();
+  const firmware = document.getElementById('ds-firmware').value.trim();
+  const piloto   = document.querySelector('input[name="ds-piloto"]:checked')?.value || 'alfas';
+  const baseName = buildStructuredName([modelo, firmware, piloto]);
+  document.getElementById('save-dataset-overlay').style.display = 'none';
   try {
     const ds = await getSavedDatasets();
+    const existingNames = ds[fw].map(d => d.name);
+    const name = await deduplicateName(baseName, existingNames);
     ds[fw].push({
       name,
       date: new Date().toISOString(),
-      files: files.map(f => ({ name: f.name, headers: f.headers, rows: f.rows, averages: f.averages, included: f.included }))
+      files: S[fw].map(f => ({ name: f.name, headers: f.headers, rows: f.rows, averages: f.averages, included: f.included }))
     });
     await IDB.set(DS_KEY, ds);
     await renderSavedDatasetsFrom(ds);
+    alert('✅ Firmware "' + name + '" guardado com sucesso.');
   } catch(e) {
     console.error('saveDataset error:', e);
     alert('Erro ao guardar: ' + (e && e.message ? e.message : e));
@@ -2948,10 +3136,32 @@ async function loadDataset(fw, idx) {
   refreshAll();
 }
 
+function setSavedDataTab(tab) {
+  const isAn = tab === 'analyses';
+  document.getElementById('saved-analyses-list').style.display = isAn ? '' : 'none';
+  document.getElementById('fw-saved-list').style.display        = isAn ? 'none' : '';
+  const btnAn = document.getElementById('sd-btn-analyses');
+  const btnFw = document.getElementById('sd-btn-fw');
+  btnAn.style.background = isAn ? 'var(--accent1)' : 'transparent';
+  btnAn.style.color      = isAn ? '#fff' : 'var(--muted)';
+  btnFw.style.background = isAn ? 'transparent' : 'var(--accent1)';
+  btnFw.style.color      = isAn ? 'var(--muted)' : '#fff';
+}
+
+async function showSavedDataPanel(tab) {
+  tab = tab || 'analyses';
+  setSavedDataTab(tab);
+  document.getElementById('saved-data-overlay').style.display = 'flex';
+  if (tab === 'analyses') await renderSavedAnalysesList();
+  else await renderFWSavedList();
+}
+
 async function showFWSavedPanel() {
-  const overlay = document.getElementById('fw-saved-overlay');
-  overlay.style.display = 'flex';
-  await renderFWSavedList();
+  await showSavedDataPanel('fw');
+}
+
+function showLoadAnalysisPanel() {
+  showSavedDataPanel('analyses');
 }
 
 async function renderFWSavedList() {
@@ -2993,7 +3203,7 @@ async function loadDatasetTo(srcFw, srcIdx, targetFw) {
   S[targetFw] = saved.files.map(f => ({ ...f }));
   renderLists();
   refreshAll();
-  document.getElementById('fw-saved-overlay').style.display = 'none';
+  document.getElementById('saved-data-overlay').style.display = 'none';
 }
 
 async function deleteFWSaved(fw, idx) {
@@ -3046,17 +3256,52 @@ async function getSavedAnalyses() {
   catch(_) { return []; }
 }
 
+function buildStructuredName(parts) {
+  const d = new Date();
+  const dateStr = d.getFullYear() + '-' +
+    String(d.getMonth()+1).padStart(2,'0') + '-' +
+    String(d.getDate()).padStart(2,'0');
+  return [dateStr, ...parts].filter(Boolean).join('_');
+}
+
+async function deduplicateName(baseName, existingNames) {
+  const matches = existingNames.filter(n => n === baseName || n.startsWith(baseName + '_'));
+  if (!matches.length) return baseName;
+  const suffixes = matches.map(n => {
+    const m = n.slice(baseName.length);
+    return m === '' ? 0 : (parseInt(m.slice(1)) || 0);
+  });
+  return baseName + '_' + (Math.max(...suffixes) + 1);
+}
+
+// ── Analysis dialog ────────────────────────────────────────────
+function updateAnNamePreview() {
+  const modelo    = document.getElementById('an-modelo')?.value.trim() || '';
+  const fwControl = document.getElementById('an-fw-control')?.value.trim() || '';
+  const fwUpgrade = document.getElementById('an-fw-upgrade')?.value.trim() || '';
+  const piloto    = document.querySelector('input[name="an-piloto"]:checked')?.value || 'alfas';
+  const base = buildStructuredName([modelo, fwControl, fwUpgrade, piloto]);
+  document.getElementById('an-name-preview').textContent = base || '—';
+}
+
 function showSaveAnalysisDialog() {
-  const auto = 'Análise_' + new Date().toLocaleDateString('pt').replace(/\//g, '-');
-  document.getElementById('analysis-name-inp').value = auto;
+  document.getElementById('an-modelo').value = '';
+  document.getElementById('an-fw-control').value = '';
+  document.getElementById('an-fw-upgrade').value = '';
+  document.querySelector('input[name="an-piloto"][value="alfas"]').checked = true;
+  updateAnNamePreview();
   document.getElementById('save-analysis-overlay').style.display = 'flex';
 }
 
 async function doSaveAnalysis() {
-  const name = document.getElementById('analysis-name-inp').value.trim() ||
-    ('Análise_' + new Date().toLocaleDateString('pt'));
+  const modelo    = document.getElementById('an-modelo').value.trim();
+  const fwControl = document.getElementById('an-fw-control').value.trim();
+  const fwUpgrade = document.getElementById('an-fw-upgrade').value.trim();
+  const piloto    = document.querySelector('input[name="an-piloto"]:checked')?.value || 'alfas';
+  const baseName  = buildStructuredName([modelo, fwControl, fwUpgrade, piloto]);
   document.getElementById('save-analysis-overlay').style.display = 'none';
   const list = await getSavedAnalyses();
+  const name = await deduplicateName(baseName, list.map(a => a.name));
   list.push({
     name,
     date: new Date().toISOString(),
@@ -3075,8 +3320,7 @@ async function doSaveAnalysis() {
 }
 
 function showLoadAnalysisPanel() {
-  renderSavedAnalysesList();
-  document.getElementById('load-analysis-overlay').style.display = 'flex';
+  showSavedDataPanel('analyses');
 }
 
 async function loadAnalysis(idx) {
@@ -3110,7 +3354,7 @@ async function loadAnalysis(idx) {
   if (ucTabEl) ucTabEl.value = unitsControl != null ? unitsControl : '';
   if (dfEl) dfEl.value = globalDateFrom ? new Date(globalDateFrom).toISOString().slice(0, 16) : '';
   if (dtEl) dtEl.value = globalDateTo   ? new Date(globalDateTo).toISOString().slice(0, 16)   : '';
-  document.getElementById('load-analysis-overlay').style.display = 'none';
+  document.getElementById('saved-data-overlay').style.display = 'none';
   renderLists();
   renderSettings();
   renderClusterTab();
@@ -3208,7 +3452,7 @@ async function downloadAnalysisFiles(idx) {
 // ═══════════════════════════════════════════════════════════════════
 // EVOLUÇÃO — métricas estatísticas por FW
 // ═══════════════════════════════════════════════════════════════════
-let evolStatsFW  = 'both';
+let evolStatsFW  = 'fw1';
 let evolStatsGuideOpen = false;
 let evolStatsSort = { col: 'score', dir: 'desc' };
 let evolStatsPage = 0;
@@ -3377,11 +3621,11 @@ function renderEvolStats() {
   let guideBody = '';
   if (evolStatsGuideOpen) {
     const metrics = [
-      ['📈', 'Crescimento (%)', '((last − first) / |first|) × 100', 'Direção e magnitude total da evolução no período.'],
-      ['⚡', 'Taxa Diária Composta', '(last/first)^(1/(n−1)) − 1', 'Velocidade de crescimento por unidade de tempo. Válido apenas com valores positivos.'],
-      ['🌪️', 'Variação Absoluta Média', 'mean(|xₙ − xₙ₋₁|)', 'Instabilidade entre medições consecutivas. Alta = comportamento errático.'],
-      ['📐', 'Desvio Padrão', 'σ(valores)', 'Dispersão global. Detecta picos e anomalias estruturais.'],
-      ['🎯', 'Score', 'taxa_norm − (var_abs_norm + std_norm) / 2', 'Índice sintético: crescimento normalizado menos volatilidade. Usa log + min-max. Indicadores no topo = crescimento elevado e/ou baixa volatilidade.'],
+      ['🎯', 'Score', 'taxa_norm − (var_abs_norm + std_norm) / 2', 'Ranking geral: quanto maior, melhor o comportamento do indicador. Permite ordenar e priorizar rapidamente quais indicadores merecem atenção.'],
+      ['📈', 'Crescimento (%)', '((last − first) / |first|) × 100', 'Conclui se o indicador subiu ou desceu ao longo do período. Útil para detetar tendências persistentes de degradação ou melhoria.'],
+      ['⚡', 'Taxa Diária Composta', '(last/first)^(1/(n−1)) − 1', 'Conclui a velocidade a que o indicador está a mudar por dia. Permite comparar ritmos de variação entre indicadores com escalas diferentes.'],
+      ['🌪️', 'Variação Absoluta Média', 'mean(|xₙ − xₙ₋₁|)', 'Conclui se o indicador é irregular ou estável entre medições. Alta = comportamento errático ou picos frequentes; baixa = evolução suave e previsível.'],
+      ['📐', 'Desvio Padrão', 'σ(valores)', 'Conclui se existem picos ou anomalias pontuais. Alto = há valores extremos que fogem da norma; baixo = distribuição consistente ao longo do tempo.'],
     ];
     guideBody = `<div style="border-top:1px solid var(--border);padding:12px 16px 14px">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin-bottom:12px">
@@ -3421,7 +3665,7 @@ function renderEvolStats() {
   </div>`;
 
   // ── FW selector ──
-  const fwBtns = [['fw1', lbl1, hasFW1], ['fw2', lbl2, hasFW2], ['both', 'Ambos', hasFW1 || hasFW2]]
+  const fwBtns = [['fw2', lbl2, hasFW2], ['fw1', lbl1, hasFW1], ['both', 'Ambos', hasFW1 || hasFW2]]
     .map(([v, lbl, avail]) => {
       const active = evolStatsFW === v;
       return `<button class="btn" style="padding:4px 12px;font-size:.76rem;${
@@ -3573,7 +3817,7 @@ function renderEvolStats() {
           ${subHdrs.map(h => `<th colspan="2" style="padding:5px 8px;text-align:center;border-bottom:1px solid var(--border);color:var(--muted);font-size:.71rem;white-space:nowrap">${h.label}${sortBtn(h.key,'center')}</th>`).join('')}
         </tr>
         <tr style="border-bottom:2px solid var(--border);font-size:.68rem">
-          ${subHdrs.map(() => `<th style="padding:4px 8px;text-align:right;color:var(--accent1)">🔵 ${lbl1}</th><th style="padding:4px 8px;text-align:right;color:var(--accent2)">🟠 ${lbl2}</th>`).join('')}
+          ${subHdrs.map(() => `<th style="padding:4px 8px;text-align:right;color:var(--accent2)">🟠 ${lbl2}</th><th style="padding:4px 8px;text-align:right;color:var(--accent1)">🔵 ${lbl1}</th>`).join('')}
         </tr>
       </thead>
       <tbody>
@@ -3586,14 +3830,14 @@ function renderEvolStats() {
           return `<tr style="${rb}">
             <td style="padding:7px 10px;font-size:.79rem;white-space:nowrap"><button title="Ver nos Dados" onclick="viewIndicatorInData('${ind.replace(/'/g, "\\'")}')"
               style="background:none;border:none;cursor:pointer;padding:0 3px 0 0;font-size:.72rem;color:var(--muted);vertical-align:middle;line-height:1" tabindex="-1">🔗</button>${esc(ind)}${typeTag(ind)}</td>
-            <td style="padding:7px 8px;text-align:right;font-size:.76rem;font-weight:600;color:var(--muted)">${sc1 !== undefined ? scoreStr(sc1) : 'N/D'}</td>
             <td style="padding:7px 8px;text-align:right;font-size:.76rem;font-weight:600;color:var(--muted)">${sc2 !== undefined ? scoreStr(sc2) : 'N/D'}</td>
-            ${numTd(st1 ? st1.growth : null, '%', posColor, x)}${numTd(st2 ? st2.growth : null, '%', posColor, x)}
-            ${numTd(st1 ? st1.dailyRate : null, '%', posColor, x)}${numTd(st2 ? st2.dailyRate : null, '%', posColor, x)}
-            ${numTd(st1 ? st1.meanAbsVar : null, '', null, x)}${numTd(st2 ? st2.meanAbsVar : null, '', null, x)}
-            ${numTd(st1 ? st1.stdDev : null, '', null, x)}${numTd(st2 ? st2.stdDev : null, '', null, x)}
-            <td style="padding:7px 8px;text-align:center;font-size:.76rem;color:${sig1.color}">${sig1.icon} ${sig1.label}</td>
+            <td style="padding:7px 8px;text-align:right;font-size:.76rem;font-weight:600;color:var(--muted)">${sc1 !== undefined ? scoreStr(sc1) : 'N/D'}</td>
+            ${numTd(st2 ? st2.growth : null, '%', posColor, x)}${numTd(st1 ? st1.growth : null, '%', posColor, x)}
+            ${numTd(st2 ? st2.dailyRate : null, '%', posColor, x)}${numTd(st1 ? st1.dailyRate : null, '%', posColor, x)}
+            ${numTd(st2 ? st2.meanAbsVar : null, '', null, x)}${numTd(st1 ? st1.meanAbsVar : null, '', null, x)}
+            ${numTd(st2 ? st2.stdDev : null, '', null, x)}${numTd(st1 ? st1.stdDev : null, '', null, x)}
             <td style="padding:7px 8px;text-align:center;font-size:.76rem;color:${sig2.color}">${sig2.icon} ${sig2.label}</td>
+            <td style="padding:7px 8px;text-align:center;font-size:.76rem;color:${sig1.color}">${sig1.icon} ${sig1.label}</td>
           </tr>`;
         }).join('')}
       </tbody>

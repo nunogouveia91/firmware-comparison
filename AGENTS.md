@@ -11,9 +11,12 @@ Single-page web application for comparing firmware CSV exports. The entire appli
 ```
 app.py              → Flask: serves src/ as static files (local development only)
 requirements.txt    → flask>=2.3
+.github/
+  copilot-instructions.md  → Copilot instructions (followed on every commit)
 src/
   comparador.html   → Complete app (HTML + CSS + JS, no build step)
 uploads/            → Not used at runtime (legacy folder)
+PRD.md              → Product Requirements Document
 ```
 
 **All development happens in `src/comparador.html`.**
@@ -51,9 +54,9 @@ No build step, no npm, no compilation. Edit and refresh.
 | `unitsControl` | Control / Antes units | Device count for FW-A |
 
 ### Tabs
-- **Carregar Dados** — file upload; FW-A (Control/Antes) on left, FW-B (Upgrade/Depois) on right
-- **Comparação → Comparação Direta** — side-by-side average comparison with classification
-- **Comparação → Comparação Temporal** — time-series chart; supports misaligned time periods via position-based alignment (`alignedPairs`)
+- **Carregar Dados** — file upload; toggle between "Dois Grupos" mode (FW-A left, FW-B right) and "ZIP" mode (single ZIP with `Firmware_A_Control/` + `Firmware_B_Upgrade/` folders); button "Dados Guardados" opens a unified panel with inner toggle between Análises and Firmwares (default: Análises)
+- **Comparação → Diferenças** — side-by-side average comparison with classification
+- **Comparação → Variação** — time-series chart; supports misaligned time periods via position-based alignment (`alignedPairs`)
 - **Evolução** — per-indicator statistical metrics (score, growth, rate, var.abs, std dev, signal) with pagination
 - **Dados** — raw CSV browser
 - **Definições** — thresholds, clusters, saved data management
@@ -79,7 +82,8 @@ When FW-A and FW-B have non-overlapping time periods (before/after scenario):
 ### Persistence (IndexedDB via `IDB` helper)
 - `CFG_KEY` — app config (thresholds, clusters, weights) — also mirrored in `localStorage` for legacy
 - `DS_KEY` — saved firmware datasets
-- `AN_KEY` — saved full analyses (includes all file data + config + state)
+- `AN_KEY` — saved full analyses; names generated as `YYYY-MM-DD_modelo_fw-control_fw-upgrade_piloto` (suffix `_1`, `_2`… for duplicates)
+- `DS_KEY` — saved firmware datasets; names generated as `YYYY-MM-DD_modelo_firmware_piloto` (same deduplication logic)
 - All storage is **local to each user's browser** — no server-side persistence
 - Migration: on first load, data in `localStorage` is moved to IndexedDB automatically
 

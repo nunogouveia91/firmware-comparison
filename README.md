@@ -4,6 +4,58 @@ A single-page web application for comparing two sets of firmware CSV exports sid
 
 ---
 
+## Quick start (local)
+
+```bash
+pip install -r requirements.txt
+python app.py
+# → http://localhost:5000
+```
+
+No build step. Edit `src/comparador.html` and refresh.
+
+## Unit tests
+
+```bash
+npm install
+npm test
+```
+
+Tests use [Vitest](https://vitest.dev/) and cover the pure utility functions in `src/utils.js`. CI runs on every push via `.github/workflows/test.yml`.
+
+---
+
+## Project structure
+
+```
+app.py                  → Flask dev server (serves src/ as static files)
+requirements.txt        → flask>=2.3
+src/
+  comparador.html       → Complete app (HTML + CSS + JS, no build step)
+  utils.js              → Pure utility functions (loaded by comparador.html)
+  utils.test.js         → Vitest unit tests for utils.js
+  index.html            → Redirect to comparador.html
+package.json            → Vitest dev dependency
+vitest.config.js        → Vitest configuration
+.github/
+  instructions/         → Copilot context files (per-file instructions)
+  prompts/              → Reusable agent prompt templates
+  workflows/test.yml    → CI: run npm test on push/PR
+```
+
+---
+
+## Deployment
+
+Pure static HTML — no backend needed for production.
+
+- **GitHub Pages**: Settings → Pages → branch `main`, folder `/src`
+- **Netlify / Cloudflare Pages**: publish directory `src`
+
+Each user's data is stored locally in their own browser (IndexedDB / localStorage).
+
+---
+
 ## Features
 
 ### 📂 Carregar Dados

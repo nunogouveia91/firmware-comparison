@@ -12,14 +12,22 @@ Single-page web application for comparing firmware CSV exports. The entire appli
 app.py              → Flask: serves src/ as static files (local development only)
 requirements.txt    → flask>=2.3
 .github/
-  copilot-instructions.md  → Copilot instructions (followed on every commit)
+  instructions/     → Copilot context files (comparador.html, utils.js, testing)
+  prompts/          → Reusable agent prompt templates (checkpoint, corrigir-bug, tab-*, etc.)
+  workflows/
+    test.yml        → CI: npm test on every push/PR
 src/
   comparador.html   → Complete app (HTML + CSS + JS, no build step)
+  utils.js          → Pure utility functions (loaded via <script src="utils.js">)
+  utils.test.js     → Vitest unit tests for utils.js
+  index.html        → Redirect to comparador.html
+package.json        → devDependency: vitest ^2.0.0
+vitest.config.js    → globals: true, setupFiles: ['./src/utils.js']
 uploads/            → Not used at runtime (legacy folder)
 PRD.md              → Product Requirements Document
 ```
 
-**All development happens in `src/comparador.html`.**
+**All development happens in `src/comparador.html` and `src/utils.js`.**
 
 The app is a self-contained static HTML file. Flask is only needed for local development. For online deployment, any static hosting service (GitHub Pages, Netlify, Cloudflare Pages) works — no backend required.
 
@@ -33,7 +41,26 @@ python app.py
 # → http://localhost:5000
 ```
 
-No build step, no npm, no compilation. Edit and refresh.
+```bash
+# Unit tests (pure utility functions)
+npm install
+npm test        # single run
+npm run test:watch  # watch mode
+```
+
+No build step, no compilation. Edit and refresh.
+
+---
+
+## Testing
+
+Pure utility functions live in `src/utils.js` and are tested with Vitest:
+
+- `vitest.config.js` sets `globals: true` — functions from `utils.js` are available without `import`
+- `utils.js` exports itself to `globalThis` when `window === undefined` (Node/Vitest environment)
+- New functions added to `utils.js` **must** have corresponding tests in `utils.test.js`
+- CI (`test.yml`) runs `npm test` on every push and PR
+- Functions covered: `isTs`, `isEpochMs`, `parseTs`, `getTsCol`, `esc`, `computeDelta`
 
 ---
 
@@ -62,9 +89,10 @@ No build step, no npm, no compilation. Edit and refresh.
 - **Definições** — thresholds, clusters, saved data management
 
 ### Timestamp handling
-- `isEpochMs(v)` — detects epoch milliseconds (`9e11 < v < 5e12`)
-- `parseTs(v)` — parses epoch ms, ISO strings, and PT locale `DD/MM/YYYY, HH:MM`
-- `getTsCol(f)` — finds the timestamp column by name (`timestamp`, `time`, `date`) or by content (≥70% epoch ms values); result cached on `f._tsColCache`
+- `isTs(h)` — detects timestamp column by name (in `utils.js`)
+- `isEpochMs(v)` — detects epoch milliseconds (`9e11 < v < 5e12`) (in `utils.js`)
+- `parseTs(v)` — parses epoch ms, ISO strings, and PT locale `DD/MM/YYYY, HH:MM` (in `utils.js`)
+- `getTsCol(f)` — finds the timestamp column by name (`timestamp`, `time`, `date`) or by content (≥70% epoch ms values); result cached on `f._tsColCache` (in `utils.js`)
 
 ### Classification
 - `classify(pct)` — maps a percentage delta to a level/label/color based on `CFG.failThresholds`

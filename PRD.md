@@ -1,7 +1,7 @@
 # PRD — Firmware Comparison Tool
 
-**Versão:** 1.6  
-**Data:** 2026-04-21  
+**Versão:** 1.7  
+**Data:** 2026-04-23  
 **Branch:** dev  
 
 ---
@@ -87,6 +87,7 @@ Aplicação web de página única (SPA) para comparação de exports CSV de firm
 | Persistência local | IndexedDB + localStorage (migração automática) |
 | Compatibilidade | Browsers modernos (Chrome, Firefox, Edge, Safari) |
 | Hosting | GitHub Pages, Netlify, Cloudflare Pages |
+| Testes automatizados | Vitest; CI via GitHub Actions em cada push/PR |
 
 ---
 
@@ -96,9 +97,17 @@ Aplicação web de página única (SPA) para comparação de exports CSV de firm
 app.py              → Flask (desenvolvimento local apenas)
 requirements.txt    → flask>=2.3
 .github/
-  copilot-instructions.md  → Instruções para o AI agent (actualizar README, AGENTS.md e PRD em cada commit)
+  instructions/     → Ficheiros de contexto para Copilot (por ficheiro)
+  prompts/          → Templates de prompts reutilizáveis para o agente
+  workflows/
+    test.yml        → CI: npm test em cada push/PR
 src/
   comparador.html   → Aplicação completa (HTML + CSS + JS)
+  utils.js          → Funções puras extraídas (carregado via <script src>)
+  utils.test.js     → Testes Vitest para utils.js
+  index.html        → Redirect para comparador.html
+package.json        → devDependency: vitest
+vitest.config.js    → Configuração Vitest
 AGENTS.md           → Instruções de arquitectura para agentes AI
 PRD.md              → Este documento
 README.md           → Documentação pública
@@ -120,7 +129,6 @@ README.md           → Documentação pública
 - Autenticação / autorização
 - Sincronização de dados entre utilizadores
 - Backend de persistência
-- Pipeline CI/CD para testes automatizados
 
 ---
 
@@ -134,4 +142,4 @@ README.md           → Documentação pública
 | 2026-04-21 | 1.3 | Análise com fw_control + fw_upgrade separados; dialog de nome para datasets |
 | 2026-04-21 | 1.4 | Botão “Dados Guardados” unifica Análises e Firmwares num único painel com toggle interno |
 | 2026-04-21 | 1.5 | Botões “Guardar Firmware” reestilizados igual ao “Guardar Análise”, movidos para baixo de cada painel |
-| 2026-04-21 | 1.6 | Tabs “Diferenças” e “Variação” separadas; glossario em cada uma |
+| 2026-04-21 | 1.6 | Tabs “Diferenças” e “Variação” separadas; glossario em cada uma || 2026-04-23 | 1.7 | Infra de testes: utils.js + Vitest + GitHub Actions CI; instructions e prompts para Copilot |

@@ -118,13 +118,16 @@ When FW-A and FW-B have non-overlapping time periods (before/after scenario):
 
 ## Checkpoint / versioning
 
-Use git commits as checkpoints **before** large structural changes:
+Use git commits on the **current branch** as checkpoints **before** large structural changes.  
+**Do NOT create a new branch** just to save a checkpoint — commit directly:
 
 ```bash
-git add -A && git commit -m "checkpoint: description" && git push
+git add -A && git commit -m "checkpoint: description"
 ```
 
-To revert a single file to a specific commit:
+To revert a single file to a previous commit (last resort):
 ```bash
 git checkout <hash> -- src/comparador.html
 ```
+
+> ⚠️ **Never** suggest `git checkout -b <new-branch>` as a checkpoint strategy — it only creates branch clutter.

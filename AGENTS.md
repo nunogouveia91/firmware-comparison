@@ -13,7 +13,7 @@ app.py              → Flask: serves src/ as static files (local development on
 requirements.txt    → flask>=2.3
 .github/
   instructions/     → Copilot context files (comparador.html, utils.js, testing)
-  prompts/          → Reusable agent prompt templates (checkpoint, corrigir-bug, tab-*, etc.)
+  prompts/          → Reusable agent prompt templates (build-release, corrigir-bug, tab-*, etc.) — checkpoint is a global user prompt
   workflows/
     test.yml        → CI: npm test on every push/PR
 src/
@@ -24,6 +24,7 @@ src/
 package.json        → devDependency: vitest ^2.0.0
 vitest.config.js    → globals: true, setupFiles: ['./src/utils.js']
 uploads/            → Not used at runtime (legacy folder)
+release/            → Distribution files (abrir.bat, server.ps1) used to build firmware-comparison.zip
 PRD.md              → Product Requirements Document
 ```
 

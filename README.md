@@ -4,7 +4,18 @@ A single-page web application for comparing two sets of firmware CSV exports sid
 
 ---
 
-## Quick start (local)
+## Usar a aplicação (Windows, sem instalações)
+
+1. Descarrega o ficheiro **[firmware-comparison.zip](firmware-comparison.zip)**
+2. Extrai a pasta para qualquer local
+3. Dá duplo-clique em **`abrir.bat`**
+4. O browser abre automaticamente em `http://localhost:8080/comparador.html`
+
+> Não é necessário instalar Python, Node.js ou qualquer outro software. Requer apenas Windows com PowerShell (incluído em todas as versões modernas do Windows).
+
+---
+
+## Quick start (local — desenvolvimento)
 
 ```bash
 pip install -r requirements.txt

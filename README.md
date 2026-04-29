@@ -39,7 +39,7 @@ Tests use [Vitest](https://vitest.dev/) and cover the pure utility functions in 
 ## Project structure
 
 ```
-app.py                  → Flask dev server (serves src/ as static files)
+app.py                  → Flask dev server (serves src/ as static files; includes /api/es-proxy)
 requirements.txt        → flask>=2.3
 src/
   comparador.html       → Complete app (HTML + CSS + JS, no build step)
@@ -48,6 +48,8 @@ src/
   index.html            → Redirect to comparador.html
 package.json            → Vitest dev dependency
 vitest.config.js        → Vitest configuration
+tools/                  → Dev/debug scripts (Kibana field inspection, ES query testing)
+ROADMAP.md              → Planned features and future ideas
 .github/
   instructions/         → Copilot context files (per-file instructions)
   prompts/              → Reusable agent prompt templates
@@ -71,7 +73,7 @@ Each user's data is stored locally in their own browser (IndexedDB / localStorag
 
 ### 📂 Carregar Dados
 - Upload multiple CSV files per group: **FW-A (Control / Antes)** on the left, **FW-B (Upgrade / Depois)** on the right
-- **Load mode toggle**: "Dois Grupos" (default, two separate drop zones) or "ZIP" (single `.zip` with `Firmware_A_Control/` and `Firmware_B_Upgrade/` folders; auto-distributes CSVs to the correct group)
+- **Load mode toggle**: "Dois Grupos" (default, two separate drop zones), "ZIP" (single `.zip` with `Firmware_A_Control/` and `Firmware_B_Upgrade/` folders; auto-distributes CSVs to the correct group), or **"ES"** (query Elasticsearch directly — configure URL + API Key in *Definições → 🔌 ES*)
 - Drag-and-drop or file picker support
 - Name each group with a custom label
 - Define number of units per group (used for the "desprezável" filter)

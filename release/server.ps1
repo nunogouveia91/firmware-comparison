@@ -45,9 +45,66 @@ while ($listener.IsListening) {
             $path = "comparador.html"
         }
 
-        $filePath = Join-Path $srcDir $path
-
-        if (Test-Path $filePath -PathType Leaf) {
+        # ── ES proxy ──────────────────────────────────────────────
+        if ($path -eq 'api/es-proxy' -and $req.HttpMethod -eq 'POST') {
+            $esUrl    = $req.Headers['X-ES-Url']
+            $apiKey   = $req.Headers['X-ES-ApiKey']
+            $esPath   = $req.Headers['X-ES-Path']
+            if ($esUrl -and $apiKey -and $esPath) {
+                $target = "$($esUrl.TrimEnd('/'))/$($esPath.TrimStart('/'))"
+                $reader = New-Object System.IO.StreamReader($req.InputStream)
+                $bodyJson = $reader.ReadToEnd()
+                $reader.Close()
+                try {
+                    $webReq = [System.Net.HttpWebRequest]::Create($target)
+                    $webReq.Method = 'POST'
+                    $webReq.ContentType = 'application/json'
+                    $webReq.Headers.Add('Authorization', "ApiKey $apiKey")
+                    $bodyBytes = [System.Text.Encoding]::UTF8.GetBytes($bodyJson)
+                    $webReq.ContentLength = $bodyBytes.Length
+                    $webReq.Timeout = 30000
+                    $stream = $webReq.GetRequestStream()
+                    $stream.Write($bodyBytes, 0, $bodyBytes.Length)
+                    $stream.Close()
+                    $webResp = $webReq.GetResponse()
+                    $respStream = $webResp.GetResponseStream()
+                    $respBytes = New-Object System.IO.MemoryStream
+                    $respStream.CopyTo($respBytes)
+                    $respStream.Close()
+                    $data = $respBytes.ToArray()
+                    $res.ContentType = 'application/json'
+                    $res.StatusCode = 200
+                    $res.ContentLength64 = $data.Length
+                    $res.OutputStream.Write($data, 0, $data.Length)
+                    Write-Host "  200  /api/es-proxy → $target"
+                } catch [System.Net.WebException] {
+                    $errResp = $_.Exception.Response
+                    if ($errResp) {
+                        $errStream = $errResp.GetResponseStream()
+                        $errBytes  = New-Object System.IO.MemoryStream
+                        $errStream.CopyTo($errBytes)
+                        $errData = $errBytes.ToArray()
+                        $res.StatusCode = [int]$errResp.StatusCode
+                        $res.ContentType = 'application/json'
+                        $res.ContentLength64 = $errData.Length
+                        $res.OutputStream.Write($errData, 0, $errData.Length)
+                    } else {
+                        $errBody = [System.Text.Encoding]::UTF8.GetBytes($_.Exception.Message)
+                        $res.StatusCode = 502
+                        $res.ContentLength64 = $errBody.Length
+                        $res.OutputStream.Write($errBody, 0, $errBody.Length)
+                    }
+                    Write-Host "  ERR  /api/es-proxy $($_.Exception.Message)" -ForegroundColor Red
+                }
+            } else {
+                $errBody = [System.Text.Encoding]::UTF8.GetBytes('Missing headers')
+                $res.StatusCode = 400
+                $res.ContentLength64 = $errBody.Length
+                $res.OutputStream.Write($errBody, 0, $errBody.Length)
+            }
+        # ── Static files ──────────────────────────────────────────
+        } elseif (Test-Path (Join-Path $srcDir $path) -PathType Leaf) {
+            $filePath = Join-Path $srcDir $path
             $ext  = [System.IO.Path]::GetExtension($filePath).ToLower()
             $mime = if ($mimeTypes.ContainsKey($ext)) { $mimeTypes[$ext] } else { "application/octet-stream" }
             $bytes = [System.IO.File]::ReadAllBytes($filePath)

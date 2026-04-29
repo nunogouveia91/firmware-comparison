@@ -308,6 +308,8 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
           style="border:none;border-radius:16px;padding:4px 14px;font-size:.78rem;cursor:pointer;font-weight:600;background:var(--accent1);color:#fff;transition:all .15s">📁 Dois Grupos</button>
         <button id="mode-btn-zip" onclick="setUploadMode('zip')"
           style="border:none;border-radius:16px;padding:4px 14px;font-size:.78rem;cursor:pointer;font-weight:600;background:transparent;color:var(--muted);transition:all .15s">🗜️ ZIP</button>
+        <button id="mode-btn-es" onclick="setUploadMode('es')"
+          style="border:none;border-radius:16px;padding:4px 14px;font-size:.78rem;cursor:pointer;font-weight:600;background:transparent;color:var(--muted);transition:all .15s">🔌 ES</button>
       </div>
     </div>
 
@@ -321,6 +323,48 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
         <input type="file" id="inp-zip" accept=".zip">
       </div>
       <div id="zip-status" style="margin-top:8px;font-size:.8rem;color:var(--muted);text-align:center"></div>
+    </div>
+
+    <!-- ES query zone (hidden by default) -->
+    <div id="es-upload-zone" style="display:none;margin-bottom:12px">
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-size:.85rem;font-weight:700;color:var(--text)">🔌 Carregar do Elasticsearch</div>
+        <div style="font-size:.75rem;color:var(--muted)">Configura a ligação em <strong>Definições → 🔌 ES</strong>. Métricas idênticas à visualização <em>WACS | HGW | Analysis | Issues Eq. FTTH</em>. Timestamps em UTC.</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:1;min-width:180px">
+            <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:4px">Índice</label>
+            <input type="text" id="es-index-pattern" value="wacs_k8s_events-*" style="width:100%;font-size:.85rem">
+          </div>
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:4px">Device IDs (um por linha ou vírgula; vazio = todos)</label>
+          <textarea id="es-device-ids" rows="3" placeholder="4485daf16bdc&#10;4485daf16bcc&#10;4485daf2aa64" style="width:100%;max-width:500px;font-size:.8rem;font-family:monospace;resize:vertical"></textarea>
+        </div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap">
+          <div style="flex:1;min-width:220px">
+            <div style="font-size:.8rem;font-weight:600;color:var(--accent2);margin-bottom:6px">🟠 Período A — Control / Antes</div>
+            <input type="text" id="es-label-a" placeholder="Firmware A — Antes" style="width:100%;font-size:.82rem;margin-bottom:6px">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <input type="datetime-local" id="es-from-a" style="font-size:.8rem">
+              <span style="color:var(--muted);font-size:.8rem">→</span>
+              <input type="datetime-local" id="es-to-a" style="font-size:.8rem">
+            </div>
+          </div>
+          <div style="flex:1;min-width:220px">
+            <div style="font-size:.8rem;font-weight:600;color:var(--accent1);margin-bottom:6px">🔵 Período B — Upgrade / Depois</div>
+            <input type="text" id="es-label-b" placeholder="Firmware B — Depois" style="width:100%;font-size:.82rem;margin-bottom:6px">
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              <input type="datetime-local" id="es-from-b" style="font-size:.8rem">
+              <span style="color:var(--muted);font-size:.8rem">→</span>
+              <input type="datetime-local" id="es-to-b" style="font-size:.8rem">
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn" onclick="loadFromES()" style="min-width:140px">🔌 Carregar do ES</button>
+          <span id="es-status" style="font-size:.8rem;color:var(--muted)"></span>
+        </div>
+      </div>
     </div>
 
     <!-- file panels -->
@@ -531,10 +575,13 @@ const _idbReady = (async () => {
       localStorage.removeItem(key);
     } catch(_) {}
   }
+  loadEsCfg();
 })();
 
 const DS_KEY = 'fw-datasets-v1';
 const AN_KEY = 'fw-analyses-v1';
+const ES_CFG_KEY = 'es-config-v1';
+let esCfg = { url: '', apiKey: '' };
 
 // ═══════════════════════════════════════════════════════════════════
 // CONFIG & PERSISTENCE
@@ -2014,6 +2061,7 @@ function renderSettings() {
     ${subTabBtn('limiares','⚖️ Limiares')}
     ${subTabBtn('clusters','🗂 Clusters')}
     ${subTabBtn('dados','💾 Dados')}
+    ${subTabBtn('es','🔌 ES')}
   </div>`;
 
   const limiares = `
@@ -2099,7 +2147,26 @@ function renderSettings() {
       </button>
     </div>`;
 
-  const bodyMap = { limiares, clusters, dados };
+  const esSettings = `
+    <div class="card">
+      <div class="card-title">Ligação Elasticsearch</div>
+      <p style="color:var(--muted);font-size:.76rem;margin-bottom:12px">Configuração guardada localmente no browser (IndexedDB). Nunca enviada para servidores externos.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;max-width:480px">
+        <div>
+          <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">URL do Elasticsearch</label>
+          <input type="url" id="es-cfg-url" placeholder="https://elasticsearch.i9.clg.nos.pt" value="${esc(esCfg.url)}" style="width:100%">
+        </div>
+        <div>
+          <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">API Key</label>
+          <input type="password" id="es-cfg-key" placeholder="Base64 API key" value="${esc(esCfg.apiKey)}" style="width:100%">
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
+        <button class="btn" onclick="saveEsCfg()">💾 Guardar</button>
+        <span id="es-cfg-status" style="font-size:.78rem;color:var(--muted)"></span>
+      </div>
+    </div>`;
+  const bodyMap = { limiares, clusters, dados, es: esSettings };
   el.innerHTML = subNav + (bodyMap[activeSub] || '');
   el._settingsSubTab = activeSub;
   if (activeSub === 'clusters') {
@@ -2912,25 +2979,258 @@ document.querySelectorAll('header .tabs .tab-btn').forEach(btn => {
 // ═══════════════════════════════════════════════════════════════════
 
 // ── Upload mode toggle ──────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════
+// ELASTICSEARCH INTEGRATION
+// ═══════════════════════════════════════════════════════════════════
+async function loadEsCfg() {
+  try {
+    const stored = await IDB.get(ES_CFG_KEY);
+    if (stored) Object.assign(esCfg, stored);
+  } catch(_) {}
+}
+
+async function saveEsCfg() {
+  esCfg.url = (document.getElementById('es-cfg-url')?.value || '').trim();
+  esCfg.apiKey = (document.getElementById('es-cfg-key')?.value || '').trim();
+  try {
+    await IDB.set(ES_CFG_KEY, { url: esCfg.url, apiKey: esCfg.apiKey });
+    const st = document.getElementById('es-cfg-status');
+    if (st) { st.textContent = '✓ Guardado'; setTimeout(() => { if (st) st.textContent = ''; }, 2000); }
+  } catch(e) { alert('Erro ao guardar config ES: ' + e.message); }
+}
+
+function buildESAggQuery(deviceIds, fromIso, toIso) {
+  const deviceFilter = deviceIds.length > 0
+    ? { terms: { deviceId: deviceIds } }
+    : { match_all: {} };
+  function filtCard(kql) {
+    return {
+      filter: { query_string: { query: kql, analyze_wildcard: true, default_operator: 'AND' } },
+      aggs: { val: { cardinality: { field: 'deviceId.keyword' } } }
+    };
+  }
+  return {
+    size: 0,
+    query: { bool: { filter: [ deviceFilter, { range: { '@timestamp': { gte: fromIso, lte: toIso } } } ] } },
+    aggs: {
+      by_hour: {
+        date_histogram: { field: '@timestamp', calendar_interval: '1h', min_doc_count: 1 },
+        aggs: {
+          devices:                     { cardinality: { field: 'deviceId.keyword' } },
+          at_call:                     filtCard('httprequest_url: */parameters/Device.DeviceInfo.UpTime'),
+          uptime_lt1h:                 { filter: { range: { 'Device.DeviceInfo.UpTime': { gte: 0, lt: 3600 } } }, aggs: { val: { cardinality: { field: 'deviceId.keyword' } } } },
+          socket_lt1h:                 { filter: { range: { 'stat.upTime': { gte: 0, lt: 3600 } } }, aggs: { val: { cardinality: { field: 'deviceId.keyword' } } } },
+          socket_boot:                 { filter: { query_string: { query: 'context: boot AND Device.DeviceInfo.UpTime:>500', analyze_wildcard: true, default_operator: 'AND' } } },
+          avg_stat_duration:           { avg: { field: 'stat.duration' } },
+          stat_duration_gt8:           { filter: { range: { 'stat.duration': { gte: 8 } } }, aggs: { val: { cardinality: { field: 'deviceId.keyword' } } } },
+          ssid_name_error:             filtCard('Device.WiFi.SSID.1.SSID: NOS_AP_24G OR Device.WiFi.SSID.2.SSID: NOS_AP_5G OR Device.WiFi.SSID.1.SSID: Atheros_XSpan_2G OR Device.WiFi.SSID.1.SSID: "ssid not found" OR Device.WiFi.SSID.2.SSID: "ssid not found"'),
+          one_radio_on:                filtCard('(Device.WiFi.Radio.1.Enable:"true" AND Device.WiFi.Radio.2.Enable:"false") OR (Device.WiFi.Radio.2.Enable:"true" AND Device.WiFi.Radio.1.Enable:"false")'),
+          wifi_ch0:                    filtCard('(Device.WiFi.Radio.1.Enable:true AND Device.WiFi.SSID.1.Enable:true AND Device.WiFi.Radio.1.Channel:0) OR (Device.WiFi.Radio.2.Enable:true AND Device.WiFi.SSID.2.Enable:true AND Device.WiFi.Radio.2.Channel:0)'),
+          ssid_5ghz_down_24_up:        filtCard('Device.WiFi.SSID.1.Enable:"true" AND Device.WiFi.SSID.2.Enable:"false" AND Device.WiFi.Radio.1.Enable:"true" AND Device.WiFi.Radio.2.Enable:"true"'),
+          ssid_24ghz_down_5_up:        filtCard('Device.WiFi.SSID.1.Enable:"false" AND Device.WiFi.SSID.2.Enable:"true" AND Device.WiFi.Radio.1.Enable:"true" AND Device.WiFi.Radio.2.Enable:"true"'),
+          radio1_up_status_down:       filtCard('Device.WiFi.Radio.1.Enable:"true" AND NOT Device.WiFi.Radio.1.Status:"Up" AND Device.WiFi.SSID.1.Enable:"true" AND NOT Device.WiFi.SSID.1.Status:"Up" AND Device.WiFi.AccessPoint.1.Enable:"true" AND NOT Device.WiFi.AccessPoint.1.Status:"Enabled"'),
+          radio2_up_status_down:       filtCard('Device.WiFi.Radio.2.Enable:"true" AND NOT Device.WiFi.Radio.2.Status:"Up" AND Device.WiFi.SSID.2.Enable:"true" AND NOT Device.WiFi.SSID.2.Status:"Up" AND Device.WiFi.AccessPoint.2.Enable:"true" AND NOT Device.WiFi.AccessPoint.2.Status:"Enabled"'),
+          catv_nok:                    filtCard('Device.Optical.Interface.1.X_NOS_PT_CATV.OpticalSignalLevel:<-7000 OR Device.Optical.Interface.1.X_NOS_PT_CATV.OpticalSignalLevel:>2000'),
+          nok_1490:                    { filter: { range: { 'Device.Optical.Interface.1.OpticalSignalLevel': { lte: -27000 } } }, aggs: { val: { cardinality: { field: 'deviceId.keyword' } } } },
+          bridge_on:                   filtCard('Device.Services.RemoteAccess.BridgeMode.SoftBridge.Enable:"true" AND Device.Ethernet.Interface.4.Status:"Up"'),
+          dhcp_error:                  filtCard('NOT Device.DHCPv4.Server.Pool.1.Status:"Enabled" AND Device.DHCPv4.Server.Pool.1.Enable:"true"'),
+          bridge_off_dhcp_error:       filtCard('Device.DHCPv4.Server.Pool.1.Status:"Error" AND Device.Services.RemoteAccess.BridgeMode.SoftBridge.Enable:"false" AND Device.Ethernet.Interface.4.Status:"Up"'),
+          bridge_on_dhcp_error:        filtCard('Device.DHCPv4.Server.Pool.1.Status:"Error" AND Device.Services.RemoteAccess.BridgeMode.SoftBridge.Enable:"true" AND Device.Ethernet.Interface.4.Status:"Up"'),
+          bridge_lt1g:                 filtCard('NOT Device.Ethernet.Interface.4.CurrentBitRate:1000 AND Device.Services.RemoteAccess.BridgeMode.SoftBridge.Enable:"true" AND Device.Ethernet.Interface.4.Status:"Up"'),
+          eth_10mbps:                  filtCard('(Device.Ethernet.Interface.1.CurrentBitRate:10 AND Device.Ethernet.Interface.1.Status:"Up") OR (Device.Ethernet.Interface.2.CurrentBitRate:10 AND Device.Ethernet.Interface.2.Status:"Up") OR (Device.Ethernet.Interface.3.CurrentBitRate:10 AND Device.Ethernet.Interface.3.Status:"Up") OR (Device.Ethernet.Interface.4.CurrentBitRate:10 AND Device.Ethernet.Interface.4.Status:"Up")'),
+          eth_100mbps:                 filtCard('(Device.Ethernet.Interface.1.CurrentBitRate:100 AND Device.Ethernet.Interface.1.Status:"Up") OR (Device.Ethernet.Interface.2.CurrentBitRate:100 AND Device.Ethernet.Interface.2.Status:"Up") OR (Device.Ethernet.Interface.3.CurrentBitRate:100 AND Device.Ethernet.Interface.3.Status:"Up") OR (Device.Ethernet.Interface.4.CurrentBitRate:100 AND Device.Ethernet.Interface.4.Status:"Up")'),
+          voz_nok:                     filtCard('Device.Services.VoiceService.1.VoiceProfile.1.Line.1.Enable:"Enabled" AND NOT Device.Services.VoiceService.1.VoiceProfile.1.Line.1.Status:"Up"'),
+          ipv6_nok:                    filtCard('Device.IP.IPv6Enable:true AND (Device.DHCPv6.Client.1.Enable:false OR Device.DHCPv6.Server.Enable:false OR Device.DHCPv6.Server.Pool.1.Enable:false OR Device.RouterAdvertisement.Enable:false OR Device.DHCPv6.Client.1.Status:Disabled)'),
+          ipv4_only:                   filtCard('Device.IP.IPv6Enable:false'),
+          ipv6_ok:                     filtCard('Device.IP.IPv6Enable:true AND Device.DHCPv6.Client.1.Enable:true AND Device.DHCPv6.Server.Enable:true AND Device.DHCPv6.Server.Pool.1.Enable:true AND Device.RouterAdvertisement.Enable:true AND Device.DHCPv6.Client.1.Status:Enabled'),
+          radio24_dormant:             filtCard('Device.WiFi.Radio.1.Enable:"true" AND Device.WiFi.Radio.1.Status:"Dormant" AND Device.WiFi.SSID.1.Enable:"true"'),
+          radio5_dormant:              filtCard('Device.WiFi.Radio.2.Enable:true AND Device.WiFi.Radio.2.Status:Dormant AND Device.WiFi.SSID.2.Enable:true'),
+          all_eth_used:                filtCard('Device.Ethernet.Interface.1.Status:"Up" AND Device.Ethernet.Interface.2.Status:"Up" AND Device.Ethernet.Interface.3.Status:"Up" AND Device.Ethernet.Interface.4.Status:"Up"'),
+          eth_3used:                   filtCard('(Device.Ethernet.Interface.1.Status:"Up" AND Device.Ethernet.Interface.2.Status:"Up" AND Device.Ethernet.Interface.3.Status:"Up" AND NOT Device.Ethernet.Interface.4.Status:"Up") OR (Device.Ethernet.Interface.1.Status:"Up" AND Device.Ethernet.Interface.2.Status:"Up" AND NOT Device.Ethernet.Interface.3.Status:"Up" AND Device.Ethernet.Interface.4.Status:"Up") OR (Device.Ethernet.Interface.1.Status:"Up" AND NOT Device.Ethernet.Interface.2.Status:"Up" AND Device.Ethernet.Interface.3.Status:"Up" AND Device.Ethernet.Interface.4.Status:"Up") OR (NOT Device.Ethernet.Interface.1.Status:"Up" AND Device.Ethernet.Interface.2.Status:"Up" AND Device.Ethernet.Interface.3.Status:"Up" AND Device.Ethernet.Interface.4.Status:"Up")'),
+          eth_1up:                     filtCard('(Device.Ethernet.Interface.1.Status:"Up" AND NOT Device.Ethernet.Interface.2.Status:"Up" AND NOT Device.Ethernet.Interface.3.Status:"Up" AND NOT Device.Ethernet.Interface.4.Status:"Up") OR (NOT Device.Ethernet.Interface.1.Status:"Up" AND Device.Ethernet.Interface.2.Status:"Up" AND NOT Device.Ethernet.Interface.3.Status:"Up" AND NOT Device.Ethernet.Interface.4.Status:"Up") OR (NOT Device.Ethernet.Interface.1.Status:"Up" AND NOT Device.Ethernet.Interface.2.Status:"Up" AND Device.Ethernet.Interface.3.Status:"Up" AND NOT Device.Ethernet.Interface.4.Status:"Up") OR (NOT Device.Ethernet.Interface.1.Status:"Up" AND NOT Device.Ethernet.Interface.2.Status:"Up" AND NOT Device.Ethernet.Interface.3.Status:"Up" AND Device.Ethernet.Interface.4.Status:"Up")'),
+          eth_2used:                   filtCard('(Device.Ethernet.Interface.1.Status:"Up" AND Device.Ethernet.Interface.2.Status:"Up" AND NOT Device.Ethernet.Interface.3.Status:"Up" AND NOT Device.Ethernet.Interface.4.Status:"Up") OR (Device.Ethernet.Interface.1.Status:"Up" AND NOT Device.Ethernet.Interface.2.Status:"Up" AND Device.Ethernet.Interface.3.Status:"Up" AND NOT Device.Ethernet.Interface.4.Status:"Up") OR (Device.Ethernet.Interface.1.Status:"Up" AND NOT Device.Ethernet.Interface.2.Status:"Up" AND NOT Device.Ethernet.Interface.3.Status:"Up" AND Device.Ethernet.Interface.4.Status:"Up") OR (NOT Device.Ethernet.Interface.1.Status:"Up" AND Device.Ethernet.Interface.2.Status:"Up" AND Device.Ethernet.Interface.3.Status:"Up" AND NOT Device.Ethernet.Interface.4.Status:"Up") OR (NOT Device.Ethernet.Interface.1.Status:"Up" AND Device.Ethernet.Interface.2.Status:"Up" AND NOT Device.Ethernet.Interface.3.Status:"Up" AND Device.Ethernet.Interface.4.Status:"Up") OR (NOT Device.Ethernet.Interface.1.Status:"Up" AND NOT Device.Ethernet.Interface.2.Status:"Up" AND Device.Ethernet.Interface.3.Status:"Up" AND Device.Ethernet.Interface.4.Status:"Up")'),
+          eth_0up:                     filtCard('NOT Device.Ethernet.Interface.1.Status:"Up" AND NOT Device.Ethernet.Interface.2.Status:"Up" AND NOT Device.Ethernet.Interface.3.Status:"Up" AND NOT Device.Ethernet.Interface.4.Status:"Up"'),
+          bridge_on_dhcp_err_wifi_off: filtCard('Device.DHCPv4.Server.Pool.1.Status:"Error" AND Device.Services.RemoteAccess.BridgeMode.SoftBridge.Enable:"true" AND Device.Ethernet.Interface.4.Status:"Up" AND Device.WiFi.SSID.1.Enable:"false" AND Device.WiFi.SSID.2.Enable:"false"'),
+          bridge_on_dhcp_err_wifi_on:  filtCard('Device.DHCPv4.Server.Pool.1.Status:"Error" AND Device.Services.RemoteAccess.BridgeMode.SoftBridge.Enable:"true" AND Device.Ethernet.Interface.4.Status:"Up" AND (Device.WiFi.SSID.1.Enable:"true" OR Device.WiFi.SSID.2.Enable:"true")'),
+          radio12_up_status_down:      filtCard('Device.WiFi.Radio.1.Enable:"true" AND Device.WiFi.Radio.1.Status:"Down" AND Device.WiFi.SSID.1.Enable:"true" AND Device.WiFi.AccessPoint.1.Enable:"true"'),
+          bs_enable:                   filtCard('Device.WiFi.SmartHandoverSettings.Enable:true'),
+          ssid_24ghz_down:             filtCard('Device.WiFi.SSID.1.Enable:false'),
+          ssid_5ghz_down:              filtCard('Device.WiFi.SSID.2.Enable:false'),
+          ch_24_unexpected:            filtCard('Device.WiFi.Radio.1.Channel:12 OR Device.WiFi.Radio.1.Channel:13'),
+          ch_5_weather:                filtCard('Device.WiFi.Radio.2.Channel:120 OR Device.WiFi.Radio.2.Channel:124 OR Device.WiFi.Radio.2.Channel:128'),
+          ch_5_unexpected:             filtCard('Device.WiFi.Radio.2.Channel:149 OR Device.WiFi.Radio.2.Channel:153 OR Device.WiFi.Radio.2.Channel:157 OR Device.WiFi.Radio.2.Channel:161 OR Device.WiFi.Radio.2.Channel:165')
+        }
+      }
+    }
+  };
+}
+
+function esResponseToFile(response, label) {
+  const buckets = response.aggregations.by_hour.buckets;
+  const headers = [
+    '@timestamp per hour',
+    '# devices', 'AT call', 'Uptime <1h', 'socket <1h', 'Socket_boot',
+    'avg stat duration', 'stat duration > 8', 'SSID name error',
+    '1 Radio ON other OFF', 'wifi Ch=0', 'SSID 5GHz DOWN 24 UP', 'SSID 24GHz DOWN 5 UP',
+    'Radio 1 UP Status Down', 'Radio 2 UP Status Down', 'CATV NOK', '1490 NOK',
+    'bridge ON', 'DHCP Error', 'bridge off &&  DHCP error', 'bridge on &&  DHCP error',
+    'Brigde <1G', 'Eth 10Mbps', 'Eth 100Mbps', 'Voz NOT OK', 'IPv6 NOK', 'IPv4 Only',
+    'IPv6 OK', 'Radio 24 ON && Dormant', 'Radio 5 ON && Dormant', 'all eth used',
+    '3 eth used', '1 eth up', '2 eth used', '0 eth up',
+    'bridge on && DHCP error && wifi off', 'bridge on && DHCP error && wifi on',
+    'Radio 1&2 UP Status Down', 'BS enable', 'ssid 24GHz down', 'ssid 5GHz down',
+    '2.4 GHz channels not expected', '5 GHz weather channels ', '5 GHz channels not expected '
+  ];
+  const rows = buckets.map(b => ({
+    '@timestamp per hour':                String(b.key),
+    '# devices':                          b.devices?.value ?? null,
+    'AT call':                            b.at_call?.val?.value ?? null,
+    'Uptime <1h':                         b.uptime_lt1h?.val?.value ?? null,
+    'socket <1h':                         b.socket_lt1h?.val?.value ?? null,
+    'Socket_boot':                        b.socket_boot?.doc_count ?? null,
+    'avg stat duration':                  b.avg_stat_duration?.value ?? null,
+    'stat duration > 8':                  b.stat_duration_gt8?.val?.value ?? null,
+    'SSID name error':                    b.ssid_name_error?.val?.value ?? null,
+    '1 Radio ON other OFF':               b.one_radio_on?.val?.value ?? null,
+    'wifi Ch=0':                          b.wifi_ch0?.val?.value ?? null,
+    'SSID 5GHz DOWN 24 UP':               b.ssid_5ghz_down_24_up?.val?.value ?? null,
+    'SSID 24GHz DOWN 5 UP':               b.ssid_24ghz_down_5_up?.val?.value ?? null,
+    'Radio 1 UP Status Down':             b.radio1_up_status_down?.val?.value ?? null,
+    'Radio 2 UP Status Down':             b.radio2_up_status_down?.val?.value ?? null,
+    'CATV NOK':                           b.catv_nok?.val?.value ?? null,
+    '1490 NOK':                           b.nok_1490?.val?.value ?? null,
+    'bridge ON':                          b.bridge_on?.val?.value ?? null,
+    'DHCP Error':                         b.dhcp_error?.val?.value ?? null,
+    'bridge off &&  DHCP error':          b.bridge_off_dhcp_error?.val?.value ?? null,
+    'bridge on &&  DHCP error':           b.bridge_on_dhcp_error?.val?.value ?? null,
+    'Brigde <1G':                         b.bridge_lt1g?.val?.value ?? null,
+    'Eth 10Mbps':                         b.eth_10mbps?.val?.value ?? null,
+    'Eth 100Mbps':                        b.eth_100mbps?.val?.value ?? null,
+    'Voz NOT OK':                         b.voz_nok?.val?.value ?? null,
+    'IPv6 NOK':                           b.ipv6_nok?.val?.value ?? null,
+    'IPv4 Only':                          b.ipv4_only?.val?.value ?? null,
+    'IPv6 OK':                            b.ipv6_ok?.val?.value ?? null,
+    'Radio 24 ON && Dormant':             b.radio24_dormant?.val?.value ?? null,
+    'Radio 5 ON && Dormant':              b.radio5_dormant?.val?.value ?? null,
+    'all eth used':                       b.all_eth_used?.val?.value ?? null,
+    '3 eth used':                         b.eth_3used?.val?.value ?? null,
+    '1 eth up':                           b.eth_1up?.val?.value ?? null,
+    '2 eth used':                         b.eth_2used?.val?.value ?? null,
+    '0 eth up':                           b.eth_0up?.val?.value ?? null,
+    'bridge on && DHCP error && wifi off': b.bridge_on_dhcp_err_wifi_off?.val?.value ?? null,
+    'bridge on && DHCP error && wifi on':  b.bridge_on_dhcp_err_wifi_on?.val?.value ?? null,
+    'Radio 1&2 UP Status Down':           b.radio12_up_status_down?.val?.value ?? null,
+    'BS enable':                          b.bs_enable?.val?.value ?? null,
+    'ssid 24GHz down':                    b.ssid_24ghz_down?.val?.value ?? null,
+    'ssid 5GHz down':                     b.ssid_5ghz_down?.val?.value ?? null,
+    '2.4 GHz channels not expected':      b.ch_24_unexpected?.val?.value ?? null,
+    '5 GHz weather channels ':            b.ch_5_weather?.val?.value ?? null,
+    '5 GHz channels not expected ':       b.ch_5_unexpected?.val?.value ?? null
+  }));
+  return { name: label, headers, rows, averages: computeAvg(headers, rows), included: true };
+}
+
+async function loadFromES() {
+  const statusEl = document.getElementById('es-status');
+  statusEl.textContent = '⏳ A carregar…';
+  const indexPattern = (document.getElementById('es-index-pattern')?.value || '').trim() || 'wacs_k8s_events-*';
+  const rawIds = (document.getElementById('es-device-ids')?.value || '').trim();
+  const deviceIds = rawIds ? rawIds.split(/[\n,]+/).map(s => s.trim()).filter(Boolean) : [];
+  const fromA  = document.getElementById('es-from-a')?.value;
+  const toA    = document.getElementById('es-to-a')?.value;
+  const fromB  = document.getElementById('es-from-b')?.value;
+  const toB    = document.getElementById('es-to-b')?.value;
+  const labelA = (document.getElementById('es-label-a')?.value || '').trim() || 'Período A';
+  const labelB = (document.getElementById('es-label-b')?.value || '').trim() || 'Período B';
+  if (!esCfg.url || !esCfg.apiKey) {
+    statusEl.textContent = '⚠️ Configura URL e API Key em Definições → 🔌 ES';
+    return;
+  }
+  if (!fromA || !toA || !fromB || !toB) {
+    statusEl.textContent = '⚠️ Preenche todos os campos de data/hora';
+    return;
+  }
+  const baseUrl = esCfg.url.replace(/\/$/, '');
+  // Use local proxy to avoid CORS when running on localhost
+  const useProxy = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  const proxyUrl = location.origin + '/api/es-proxy';
+  async function fetchPeriod(from, to, label) {
+    const fromIso = new Date(from).toISOString();
+    const toIso   = new Date(to).toISOString();
+    const body = buildESAggQuery(deviceIds, fromIso, toIso);
+    const esPath = indexPattern + '/_search';
+    let resp;
+    try {
+      if (useProxy) {
+        resp = await fetch(proxyUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-ES-Url': baseUrl, 'X-ES-ApiKey': esCfg.apiKey, 'X-ES-Path': esPath },
+          body: JSON.stringify(body)
+        });
+      } else {
+        resp = await fetch(baseUrl + '/' + esPath, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'ApiKey ' + esCfg.apiKey },
+          body: JSON.stringify(body)
+        });
+      }
+    } catch(netErr) {
+      throw new Error('Erro de rede — verifica configuração do ES (' + netErr.message + ')');
+    }
+    if (!resp.ok) { const t = await resp.text(); throw new Error('ES ' + resp.status + ': ' + t.slice(0, 400)); }
+    const data = await resp.json();
+    if (data.error) throw new Error('ES error: ' + JSON.stringify(data.error).slice(0, 400));
+    if (!data.aggregations?.by_hour) throw new Error('Resposta inesperada do ES (sem aggregations.by_hour). Resposta: ' + JSON.stringify(data).slice(0, 400));
+    return esResponseToFile(data, label);
+  }
+  try {
+    statusEl.textContent = '⏳ Período A…';
+    const fileA = await fetchPeriod(fromA, toA, labelA);
+    statusEl.textContent = '⏳ Período B…';
+    const fileB = await fetchPeriod(fromB, toB, labelB);
+    S.fw2 = [fileA];
+    S.fw1 = [fileB];
+    fw2Label = labelA;
+    fw1Label = labelB;
+    const lbl2 = document.getElementById('fw2-label-tab');
+    const lbl1 = document.getElementById('fw1-label-tab');
+    if (lbl2) lbl2.value = labelA;
+    if (lbl1) lbl1.value = labelB;
+    document.getElementById('fw2-label').value = labelA;
+    document.getElementById('fw1-label').value = labelB;
+    renderLists();
+    refreshAll();
+    statusEl.textContent = '✓ Carregado — ' + fileA.rows.length + 'h (A) · ' + fileB.rows.length + 'h (B)';
+  } catch(err) {
+    statusEl.textContent = '❌ ' + err.message;
+    console.error('ES load error:', err);
+  }
+}
+
 function setUploadMode(mode) {
-  const dual = document.getElementById('dual-upload-grid');
+  const dual    = document.getElementById('dual-upload-grid');
   const zipZone = document.getElementById('zip-upload-zone');
+  const esZone  = document.getElementById('es-upload-zone');
   const btnDual = document.getElementById('mode-btn-dual');
   const btnZip  = document.getElementById('mode-btn-zip');
+  const btnEs   = document.getElementById('mode-btn-es');
+  [btnDual, btnZip, btnEs].forEach(b => { if (b) { b.style.background = 'transparent'; b.style.color = 'var(--muted)'; } });
+  dual.style.display = 'none';
+  zipZone.style.display = 'none';
+  if (esZone) esZone.style.display = 'none';
   if (mode === 'zip') {
-    dual.style.display = 'none';
     zipZone.style.display = '';
-    btnDual.style.background = 'transparent';
-    btnDual.style.color = 'var(--muted)';
     btnZip.style.background = 'var(--accent1)';
     btnZip.style.color = '#fff';
+  } else if (mode === 'es') {
+    if (esZone) esZone.style.display = '';
+    if (btnEs) { btnEs.style.background = 'var(--accent1)'; btnEs.style.color = '#fff'; }
+    const idxEl = document.getElementById('es-index-pattern');
+    if (idxEl && !idxEl.value) idxEl.value = 'wacs_k8s_events-*';
   } else {
     dual.style.display = '';
-    zipZone.style.display = 'none';
     btnDual.style.background = 'var(--accent1)';
     btnDual.style.color = '#fff';
-    btnZip.style.background = 'transparent';
-    btnZip.style.color = 'var(--muted)';
   }
 }
 

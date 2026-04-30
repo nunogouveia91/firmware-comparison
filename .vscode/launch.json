@@ -5,6 +5,7 @@
       "name": "Flask",
       "type": "debugpy",
       "request": "launch",
+      "python": "C:\\Program Files\\Python313\\python.exe",
       "module": "flask",
       "env": {
         "FLASK_APP": "app.py",
@@ -12,7 +13,7 @@
       },
       "args": ["run", "--no-debugger", "--port", "5000"],
       "jinja": true,
-      "autoStartBrowser": false
+      "autoStartBrowser": true
     }
   ]
 }

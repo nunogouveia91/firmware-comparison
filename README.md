@@ -105,7 +105,7 @@ Each user's data is stored locally in their own browser (IndexedDB / localStorag
 - Auto-selects the indicator with highest variation on first load
 
 ### 📊 Evolução
-- Per-indicator statistical metrics: **Score**, **Crescimento**, **Taxa/u.t.**, **Var.Abs.**, **Desvio Padrão**, **Sinal**
+- Per-indicator statistical metrics: **Pontuação**, **Variação Total**, **Ritmo Diário**, **Oscilação**, **Dispersão**, **Sinal**
 - Paginated table (20 indicators per page)
 - Sortable columns; FW selector (FW-A / FW-B / Ambos)
 - Expandable glossary of metrics
@@ -122,6 +122,7 @@ Each user's data is stored locally in their own browser (IndexedDB / localStorag
 
 ### 📄 Relatório
 - Printable HTML report with all indicators, cluster scores and summary statistics
+- **Relatório MD** button — generates a Markdown report (`.md`) viewable in-browser with a download button
 
 ---
 

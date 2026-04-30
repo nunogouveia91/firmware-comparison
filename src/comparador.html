@@ -108,8 +108,11 @@ thead th.col-sticky{z-index:4}.avg-row td.col-sticky{background:var(--surface)!i
 /* Controls */
 .ctrl-row{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
 .ctrl-row label{color:var(--muted);font-size:.78rem}
-input[type=text],input[type=number],select{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 9px;font-size:.78rem}
-input:focus,select:focus{outline:none;border-color:var(--accent1)}
+input[type=text],input[type=number],input[type=datetime-local],select,textarea{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:5px 9px;font-size:.78rem}
+input[type=datetime-local]{color-scheme:dark}
+input[type=datetime-local]::-webkit-calendar-picker-indicator{filter:invert(1) opacity(.6)}
+textarea{resize:vertical;font-family:monospace}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent1)}
 .btn{background:var(--accent1);color:#fff;border:none;border-radius:6px;padding:6px 14px;cursor:pointer;font-size:.78rem;font-weight:500}
 .btn-toggle{background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:6px;padding:6px 14px;cursor:pointer;font-size:.78rem;font-weight:500}
 .btn-toggle.active-btn{background:var(--accent1);color:#fff;border-color:var(--accent1)}
@@ -159,6 +162,7 @@ input:focus,select:focus{outline:none;border-color:var(--accent1)}
   </div>
   <div style="display:flex;gap:8px;flex-shrink:0;align-items:center">
     <button class="btn" onclick="generateReport()" style="padding:5px 14px;font-size:.8rem;white-space:nowrap">&#128196; Relatório</button>
+    <button class="btn" onclick="generateReportMD()" style="padding:5px 14px;font-size:.8rem;white-space:nowrap" title="Descarregar relatório em Markdown (.md)">&#128196; Relatório MD</button>
   </div>
 </header>
 
@@ -2570,6 +2574,353 @@ ${sigImprovs.length ? `
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// REPORT — MARKDOWN
+// ═══════════════════════════════════════════════════════════════════
+function generateReportMD() {
+  if (!lastRows.length) { alert('Corre primeiro uma comparação (carrega ficheiros nos dois grupos).'); return; }
+
+  const l1 = fw1Label.trim() || 'FW-B — Upgrade';
+  const l2 = fw2Label.trim() || 'FW-A — Control';
+  const fw1n = S.fw1.filter(f => f.included).map(f => f.name).join(', ') || '—';
+  const fw2n = S.fw2.filter(f => f.included).map(f => f.name).join(', ') || '—';
+
+  const fails   = lastRows.filter(r => r.cls.level === 'fail');
+  const warns   = lastRows.filter(r => r.cls.level === 'warn');
+  const improvs = lastRows.filter(r => r.cls.level === 'improv');
+  const nd      = lastRows.filter(r => r.cls.level === 'nd');
+
+  // Condition A+B set (same logic as generateReport)
+  let condASet = new Set();
+  {
+    const frac = (CFG.condAThreshold ?? 1) / 100;
+    const limU = unitsUpgrade != null ? unitsUpgrade * frac : null;
+    const limC = unitsControl != null ? unitsControl * frac : null;
+    lastRows.forEach(r => {
+      if (indicatorTypes[r.h] !== 'acc') return;
+      if (r.v1 === null || r.v2 === null) return;
+      const v1ok = limU != null ? Math.abs(r.v1) <= limU : true;
+      const v2ok = limC != null ? Math.abs(r.v2) <= limC : true;
+      if (v1ok && v2ok) condASet.add(r.h);
+    });
+    const limB = CFG.condBThreshold ?? 3;
+    lastRows.forEach(r => {
+      if (indicatorTypes[r.h] !== 'avg') return;
+      if (r.v1 !== null && r.v2 !== null && Math.abs(r.v1) <= limB && Math.abs(r.v2) <= limB) condASet.add(r.h);
+    });
+  }
+  const sigFails   = fails.filter(r => !condASet.has(r.h)).sort((a, b) => (b.pct || 0) - (a.pct || 0));
+  const sigImprovs = improvs.filter(r => !condASet.has(r.h));
+
+  // Cluster data
+  const clrData = getClusterRows();
+  let overallVal = null, overallCls = null;
+  if (clrData.length) {
+    const withData = clrData.filter(r => r.avg !== null);
+    const explicit = withData.filter(r => CFG.clusterWeights[r.cn] !== undefined);
+    const auto     = withData.filter(r => CFG.clusterWeights[r.cn] === undefined);
+    const usedW    = explicit.reduce((s, r) => s + CFG.clusterWeights[r.cn], 0);
+    const autoW    = auto.length ? Math.max(0, 100 - usedW) / auto.length : 0;
+    let wSum = 0, wTotal = 0;
+    withData.forEach(r => { const w = CFG.clusterWeights[r.cn] ?? autoW; wSum += r.avg * w; wTotal += w; });
+    if (wTotal > 0) { overallVal = wSum / wTotal; overallCls = classify(overallVal); }
+  }
+
+  const repRawRows    = lastRows.filter(r => r.pct !== null);
+  const repRawOverall = repRawRows.length ? repRawRows.reduce((s, r) => s + r.pct, 0) / repRawRows.length : null;
+  const repRawCls     = repRawOverall !== null ? classify(repRawOverall) : null;
+
+  // Helper: pad cell to fixed width for readable tables
+  const col = (s, w) => String(s).padEnd(w);
+
+  // Helper: format pct
+  const fmtPct = v => v === null ? '—' : (v >= 0 ? '+' : '') + v.toFixed(1) + '%';
+  const fmtVal = v => v === null ? '—' : v.toLocaleString('pt-PT', { maximumFractionDigits: 1 });
+
+  const lines = [];
+  const date = new Date();
+
+  // ── Title + date inline ──
+  lines.push(`# 📊 Relatório de Comparação de Firmware <sub>${date.toLocaleString('pt-PT')}</sub>`);
+  lines.push(``);
+
+  // ── Scores ──
+  lines.push(`## Scores`);
+  lines.push(``);
+  lines.push(`| Grupo | Δ% | Classificação |`);
+  lines.push(`|---|:---:|---|`);
+  if (overallVal !== null) lines.push(`| **Cluster Score** | **${fmtPct(overallVal)}** | ${overallCls?.label || '—'} |`);
+  if (repRawOverall !== null) lines.push(`| Raw Score | ${fmtPct(repRawOverall)} | ${repRawCls?.label || '—'} |`);
+  lines.push(``);
+
+  // ── Cluster breakdown (compact) ──
+  if (clrData.length) {
+    lines.push(`## Clusters`);
+    lines.push(``);
+    lines.push(`| Grupo | Δ% | Classificação |`);
+    lines.push(`|---|:---:|---|`);
+    clrData.forEach(r => {
+      const icon = r.icon ? r.icon + ' ' : '';
+      lines.push(`| ${icon}${r.cn} | ${r.avg !== null ? fmtPct(r.avg) : '—'} | ${r.cls ? r.cls.label : '—'} |`);
+    });
+    lines.push(``);
+  }
+
+  // ── Summary counts ──
+  lines.push(`## Sumário de Indicadores`);
+  lines.push(``);
+  lines.push(`| 🔴 Falhas | 🟢 Melhorias | ⚠️ Avisos | — Sem Dados | # Total |`);
+  lines.push(`|:---:|:---:|:---:|:---:|:---:|`);
+  lines.push(`| **${fails.length}** | **${improvs.length}** | ${warns.length} | ${nd.length} | ${lastRows.length} |`);
+  lines.push(``);
+
+  // ── Significant failures ──
+  if (sigFails.length) {
+    const condNote = condASet.size ? ' *(excluindo Condição A)*' : '';
+    lines.push(`## 🔴 Piorias Significativas (${sigFails.length})${condNote}`);
+    lines.push(``);
+    lines.push(`| Indicador | Cluster | ${l2} | ${l1} | Δ% | Nível |`);
+    lines.push(`|---|---|---:|---:|---:|---|`);
+    sigFails.forEach(r => {
+      const icon = (r.cluster && CFG.clusterIcons[r.cluster]) || '';
+      const clusterTxt = r.cluster ? (icon ? icon + ' ' : '') + r.cluster : '—';
+      lines.push(`| ${r.h} | ${clusterTxt} | ${fmtVal(r.v2)} | ${fmtVal(r.v1)} | **${fmtPct(r.pct)}** | ${r.cls.label} |`);
+    });
+    lines.push(``);
+  } else {
+    lines.push(`## ✅ Sem piorias significativas`);
+    lines.push(``);
+  }
+
+  // ── Significant improvements ──
+  if (sigImprovs.length) {
+    const condNote = condASet.size ? ' *(excluindo Condição A)*' : '';
+    lines.push(`## 🟢 Melhorias Significativas (${sigImprovs.length})${condNote}`);
+    lines.push(``);
+    lines.push(`| Indicador | Cluster | ${l2} | ${l1} | Δ% | Nível |`);
+    lines.push(`|---|---|---:|---:|---:|---|`);
+    sigImprovs.forEach(r => {
+      const icon = (r.cluster && CFG.clusterIcons[r.cluster]) || '';
+      const clusterTxt = r.cluster ? (icon ? icon + ' ' : '') + r.cluster : '—';
+      lines.push(`| ${r.h} | ${clusterTxt} | ${fmtVal(r.v2)} | ${fmtVal(r.v1)} | **${fmtPct(r.pct)}** | ${r.cls.label} |`);
+    });
+    lines.push(``);
+  }
+
+  // ── Contexto (no fim) ──
+  lines.push(`---`);
+  lines.push(``);
+  lines.push(`## Contexto`);
+  lines.push(``);
+  lines.push(`| | Grupo | Ficheiros | Unidades |`);
+  lines.push(`|---|---|---|---|`);
+  lines.push(`| **${l1}** | Upgrade | ${fw1n} | ${unitsUpgrade != null ? unitsUpgrade.toLocaleString() : '—'} |`);
+  lines.push(`| **${l2}** | Control | ${fw2n} | ${unitsControl != null ? unitsControl.toLocaleString() : '—'} |`);
+  lines.push(``);
+
+  const md = lines.join('\n');
+  const datePart = date.toISOString().slice(0, 10);
+  const filename = `relatorio-firmware-${datePart}.md`;
+
+  const w = window.open('', '_blank');
+  if (!w) { alert('O browser bloqueou a nova janela. Permite pop-ups para este site.'); return; }
+
+  const mdJson       = JSON.stringify(md);
+  const filenameJson = JSON.stringify(filename);
+
+  w.document.write(`<!DOCTYPE html><html lang="pt"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Relatório Firmware — ${new Date().toLocaleDateString('pt-PT')}</title>
+<script src="https://cdn.jsdelivr.net/npm/marked@9/marked.min.js"><\/script>
+<style>
+*{box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:13px;line-height:1.5;color:#24292e;max-width:980px;margin:0 auto;padding:20px 24px;background:#fff}
+h1{font-size:1.6em;border-bottom:1px solid #eaecef;padding-bottom:.2em;margin:0 0 .4em}
+h1 sub{font-size:.42em;font-weight:400;color:#8b949e;vertical-align:middle;margin-left:.5em}
+h2{font-size:1.15em;border-bottom:1px solid #eaecef;padding-bottom:.2em;margin:1.4em 0 .5em}
+h3{font-size:1em;margin:.9em 0 .3em;color:#555;font-weight:600}
+table{border-collapse:collapse;width:100%;margin:6px 0 14px}
+th{background:#f6f8fa;font-weight:600;text-align:left;font-size:12px}
+th,td{border:1px solid #dfe2e5;padding:5px 10px;font-size:12px}
+td[align=right],th[align=right]{text-align:right}
+td[align=center],th[align=center]{text-align:center}
+tr:nth-child(even) td{background:#fafbfc}
+blockquote{color:#6a737d;border-left:3px solid #dfe2e5;margin:0 0 10px;padding:3px 12px;font-size:11px}
+strong{font-weight:600}
+hr{border:none;border-top:1px solid #eaecef;margin:1.4em 0}
+.pct-pos{color:#cf222e;font-weight:700}
+.pct-neg{color:#1a7f37;font-weight:700}
+.pct-zero{color:#57606a}
+.badge{display:inline-block;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:600;white-space:nowrap}
+.lv-blocker{background:#ffd4d4;color:#9a0000}
+.lv-major{background:#ffe4c4;color:#7d3a00}
+.lv-warn,.lv-atenção,.lv-atencao{background:#fff3c4;color:#6e4f00}
+.lv-ok{background:#d4f0d4;color:#0a4a0a}
+.lv-good{background:#c6f0d8;color:#095228}
+.lv-nd{background:#f0f0f0;color:#666}
+.toolbar{position:sticky;top:0;background:rgba(255,255,255,.96);backdrop-filter:blur(4px);border-bottom:1px solid #eaecef;padding:7px 0;margin-bottom:18px;display:flex;gap:8px;z-index:10}
+.btn{padding:5px 13px;border:1px solid #d0d7de;border-radius:6px;background:#f6f8fa;cursor:pointer;font-size:12px;font-weight:500;color:#24292f}
+.btn:hover{background:#eaeef2}
+.btn-green{background:#2da44e;border-color:#2da44e;color:#fff}
+.btn-green:hover{background:#2c974b}
+@media print{.toolbar{display:none!important}}
+</style></head><body>
+<div class="toolbar">
+  <button class="btn btn-green" onclick="dlMd()">⬇ Download .md</button>
+  <button class="btn" onclick="window.print()">🖨 Imprimir / PDF</button>
+</div>
+<div id="content"></div>
+<script>
+const _md = ${mdJson};
+const _fn = ${filenameJson};
+document.getElementById('content').innerHTML = marked.parse(_md);
+
+(function enhance() {
+  var content = document.getElementById('content');
+
+  // ── Helpers ──
+  function labelStyle(label) {
+    var l = (label || '').toLowerCase();
+    if (l === 'blocker')          return {bg:'#ffd4d4',fg:'#9a0000',bar:'#ef4444'};
+    if (l === 'major')            return {bg:'#ffe4c4',fg:'#7d3a00',bar:'#f97316'};
+    if (l.indexOf('aten') === 0)  return {bg:'#fff3c4',fg:'#6e4f00',bar:'#f59e0b'};
+    if (l === 'ok')               return {bg:'#d4f0d4',fg:'#0a4a0a',bar:'#22c55e'};
+    if (l === 'good')             return {bg:'#c6f0d8',fg:'#095228',bar:'#16a34a'};
+    return {bg:'#f0f0f0',fg:'#555',bar:'#94a3b8'};
+  }
+  function pctCol(v) { return v > 0 ? '#dc2626' : v < 0 ? '#16a34a' : '#64748b'; }
+  function badge(label) {
+    var s = labelStyle(label);
+    return '<span style="background:'+s.bg+';color:'+s.fg+';border-radius:4px;padding:2px 9px;font-size:11px;font-weight:700;white-space:nowrap">'+label+'</span>';
+  }
+  function hbar(pct, col, maxAbs) {
+    var w = Math.round(Math.min(50, Math.abs(pct) / maxAbs * 50));
+    var side = pct >= 0 ? 'left:50%' : 'right:50%';
+    return '<div style="position:relative;height:7px;background:#f1f5f9;border-radius:4px;min-width:70px;flex:1">' +
+      '<div style="position:absolute;top:0;'+side+';width:'+w+'%;height:100%;background:'+col+';border-radius:4px;opacity:.85"></div>' +
+      '<div style="position:absolute;top:-5px;left:50%;transform:translateX(-50%);width:3px;height:calc(100% + 10px);background:#475569;border-radius:2px"></div>' +
+      '</div>';
+  }
+
+  // ── Score cards (replace Scores table) ──
+  content.querySelectorAll('h2').forEach(function(h2) {
+    if (h2.innerText.indexOf('Score') === -1) return;
+    var tbl = h2.nextElementSibling;
+    if (!tbl || tbl.tagName !== 'TABLE') return;
+    var rows = tbl.querySelectorAll('tbody tr');
+    var cards = '';
+    rows.forEach(function(tr) {
+      var cells = tr.querySelectorAll('td');
+      var name  = cells[0] ? cells[0].innerText.trim() : '';
+      var pct   = parseFloat(cells[1] ? cells[1].innerText : '0');
+      var label = cells[2] ? cells[2].innerText.trim() : '';
+      var col   = pctCol(pct);
+      var s     = labelStyle(label);
+      var pTxt  = (pct > 0 ? '+' : '') + pct.toFixed(1) + '%';
+      cards += '<div style="flex:1;border:1px solid #e2e8f0;border-top:3px solid '+col+';border-radius:8px;padding:14px 18px;background:#fff;min-width:0">' +
+        '<div style="font-size:10px;color:#64748b;font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px">'+name+'</div>' +
+        '<div style="font-size:2em;font-weight:900;color:'+col+';line-height:1;margin-bottom:9px">'+pTxt+'</div>' +
+        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:9px">'+hbar(pct,col,50)+'</div>' +
+        badge(label) +
+        '</div>';
+    });
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;gap:12px;margin:8px 0 20px';
+    wrap.innerHTML = cards;
+    tbl.replaceWith(wrap);
+  });
+
+  // ── Cluster table: add bar to Δ% col ──
+  content.querySelectorAll('h2').forEach(function(h2) {
+    if (h2.innerText.indexOf('Cluster') === -1) return;
+    var tbl = h2.nextElementSibling;
+    if (!tbl || tbl.tagName !== 'TABLE') return;
+    var bodyRows = tbl.querySelectorAll('tbody tr');
+    var maxAbs = 5;
+    bodyRows.forEach(function(tr) {
+      var v = Math.abs(parseFloat(tr.querySelectorAll('td')[1].innerText) || 0);
+      if (v > maxAbs) maxAbs = v;
+    });
+    bodyRows.forEach(function(tr) {
+      var cells = tr.querySelectorAll('td');
+      var pct   = parseFloat(cells[1] ? cells[1].innerText : '0');
+      var label = cells[2] ? cells[2].innerText.trim() : '';
+      var col   = pctCol(pct);
+      var pTxt  = (pct > 0 ? '+' : '') + pct.toFixed(1) + '%';
+      if (cells[1]) cells[1].innerHTML =
+        '<div style="display:flex;align-items:center;gap:8px">' +
+        '<span style="min-width:52px;text-align:right;font-weight:700;color:'+col+';font-size:12px">'+pTxt+'</span>' +
+        hbar(pct, col, maxAbs) +
+        '</div>';
+      if (cells[2]) cells[2].innerHTML = badge(label);
+    });
+    // fix column widths
+    tbl.style.tableLayout = 'fixed';
+    var cg = document.createElement('colgroup');
+    cg.innerHTML = '<col style="width:45%"><col style="width:30%"><col style="width:25%">';
+    tbl.prepend(cg);
+  });
+
+  // ── Detail tables (piorias/melhorias): badges + col widths ──
+  content.querySelectorAll('table').forEach(function(tbl) {
+    var ths = tbl.querySelectorAll('thead th');
+    if (ths.length !== 6) return;
+    var h4 = ths[4] ? ths[4].innerText.trim() : '';
+    if (h4 !== 'Δ%') return;
+    tbl.style.tableLayout = 'fixed';
+    var cg = document.createElement('colgroup');
+    cg.innerHTML = '<col><col style="width:130px"><col style="width:80px"><col style="width:80px"><col style="width:70px"><col style="width:100px">';
+    tbl.prepend(cg);
+    tbl.querySelectorAll('tbody tr').forEach(function(tr) {
+      var cells = tr.querySelectorAll('td');
+      var pct   = parseFloat(cells[4] ? cells[4].innerText : 'NaN');
+      var label = cells[5] ? cells[5].innerText.trim() : '';
+      var col   = pctCol(pct);
+      if (!isNaN(pct) && cells[4])
+        cells[4].innerHTML = '<span style="font-weight:700;color:'+col+'">'+(pct>0?'+':'')+pct.toFixed(1)+'%</span>';
+      if (label && cells[5]) cells[5].innerHTML = badge(label);
+    });
+  });
+
+  // ── Sumário: large centered numbers ──
+  content.querySelectorAll('table').forEach(function(tbl) {
+    var ths = tbl.querySelectorAll('thead th');
+    if (ths.length !== 5) return;
+    var last = ths[4] ? ths[4].innerText : '';
+    if (last.indexOf('Total') === -1) return;
+    tbl.style.tableLayout = 'fixed';
+    var cg = document.createElement('colgroup');
+    cg.innerHTML = '<col style="width:20%"><col style="width:20%"><col style="width:20%"><col style="width:20%"><col style="width:20%">';
+    tbl.prepend(cg);
+    tbl.querySelectorAll('tbody td').forEach(function(td) {
+      td.style.textAlign = 'center';
+      td.style.fontSize = '18px';
+      td.style.fontWeight = '700';
+    });
+  });
+
+  // ── Contexto table ──
+  content.querySelectorAll('table').forEach(function(tbl) {
+    var ths = tbl.querySelectorAll('thead th');
+    if (ths.length !== 4) return;
+    tbl.style.tableLayout = 'fixed';
+    var cg = document.createElement('colgroup');
+    cg.innerHTML = '<col style="width:130px"><col style="width:80px"><col><col style="width:80px">';
+    tbl.prepend(cg);
+  });
+})();
+
+function dlMd() {
+  var b = new Blob([_md], {type:'text/markdown;charset=utf-8'});
+  var u = URL.createObjectURL(b);
+  var a = document.createElement('a');
+  a.href = u; a.download = _fn; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(u); }, 10000);
+}
+<\/script></body></html>`);
+  w.document.close();
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // EVOLUÇÃO 2 — implementação limpa, sem estado externo
 // ═══════════════════════════════════════════════════════════════════
 let evo2Interval          = 4;
@@ -3922,11 +4273,11 @@ function renderEvolStats() {
   let guideBody = '';
   if (evolStatsGuideOpen) {
     const metrics = [
-      ['🎯', 'Score', 'taxa_norm − (var_abs_norm + std_norm) / 2', 'Ranking geral: quanto maior, melhor o comportamento do indicador. Permite ordenar e priorizar rapidamente quais indicadores merecem atenção.'],
-      ['📈', 'Crescimento (%)', '((last − first) / |first|) × 100', 'Conclui se o indicador subiu ou desceu ao longo do período. Útil para detetar tendências persistentes de degradação ou melhoria.'],
-      ['⚡', 'Taxa Diária Composta', '(last/first)^(1/(n−1)) − 1', 'Conclui a velocidade a que o indicador está a mudar por dia. Permite comparar ritmos de variação entre indicadores com escalas diferentes.'],
-      ['🌪️', 'Variação Absoluta Média', 'mean(|xₙ − xₙ₋₁|)', 'Conclui se o indicador é irregular ou estável entre medições. Alta = comportamento errático ou picos frequentes; baixa = evolução suave e previsível.'],
-      ['📐', 'Desvio Padrão', 'σ(valores)', 'Conclui se existem picos ou anomalias pontuais. Alto = há valores extremos que fogem da norma; baixo = distribuição consistente ao longo do tempo.'],
+      ['🎯', 'Pontuação', 'taxa_norm − (var_abs_norm + std_norm) / 2', 'Ranking geral: quanto maior, melhor o comportamento do indicador. Permite ordenar e priorizar rapidamente quais indicadores merecem atenção.'],
+      ['📈', 'Variação Total (%)', '((last − first) / |first|) × 100', 'Conclui se o indicador subiu ou desceu ao longo do período. Útil para detetar tendências persistentes de degradação ou melhoria.'],
+      ['⚡', 'Ritmo Diário', '(last/first)^(1/(n−1)) − 1', 'Conclui a velocidade a que o indicador está a mudar por dia. Permite comparar ritmos de variação entre indicadores com escalas diferentes.'],
+      ['🌪️', 'Oscilação', 'mean(|xₙ − xₙ₋₁|)', 'Conclui se o indicador é irregular ou estável entre medições. Alta = comportamento errático ou picos frequentes; baixa = evolução suave e previsível.'],
+      ['📐', 'Dispersão', 'σ(valores)', 'Conclui se existem picos ou anomalias pontuais. Alto = há valores extremos que fogem da norma; baixo = distribuição consistente ao longo do tempo.'],
     ];
     guideBody = `<div style="border-top:1px solid var(--border);padding:12px 16px 14px">
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin-bottom:12px">
@@ -4043,11 +4394,11 @@ function renderEvolStats() {
     const pageArr1 = selArr.slice(evolStatsPage * EVOL_PAGE_SIZE, (evolStatsPage + 1) * EVOL_PAGE_SIZE);
     const cols = [
       { key: 'ind',    label: 'Indicador',  align: 'left'   },
-      { key: 'score',  label: 'Score',      align: 'right'  },
-      { key: 'growth', label: 'Crescimento',align: 'right'  },
-      { key: 'daily',  label: 'Taxa/u.t.',  align: 'right'  },
-      { key: 'var',    label: 'Var.Abs.',   align: 'right'  },
-      { key: 'std',    label: 'Desvio',     align: 'right'  },
+      { key: 'score',  label: 'Pontuação',    align: 'right'  },
+      { key: 'growth', label: 'Variação Total', align: 'right'  },
+      { key: 'daily',  label: 'Ritmo Diário',  align: 'right'  },
+      { key: 'var',    label: 'Oscilação',      align: 'right'  },
+      { key: 'std',    label: 'Dispersão',      align: 'right'  },
       { key: 'signal', label: 'Sinal',      align: 'center' },
     ];
     const pagerHtml1 = totalPages1 > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 0;font-size:.77rem">
@@ -4099,11 +4450,11 @@ function renderEvolStats() {
     if (evolStatsPage >= totalPages2) evolStatsPage = totalPages2 - 1;
     const pageArr2 = selArr.slice(evolStatsPage * EVOL_PAGE_SIZE, (evolStatsPage + 1) * EVOL_PAGE_SIZE);
     const subHdrs = [
-      { key: 'score',  label: 'Score' },
-      { key: 'growth', label: 'Crescimento' },
-      { key: 'daily',  label: 'Taxa/u.t.' },
-      { key: 'var',    label: 'Var.Abs.' },
-      { key: 'std',    label: 'Desvio' },
+      { key: 'score',  label: 'Pontuação' },
+      { key: 'growth', label: 'Variação Total' },
+      { key: 'daily',  label: 'Ritmo Diário' },
+      { key: 'var',    label: 'Oscilação' },
+      { key: 'std',    label: 'Dispersão' },
       { key: 'signal', label: 'Sinal' },
     ];
     const pagerHtml2 = totalPages2 > 1 ? `<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 0;font-size:.77rem">

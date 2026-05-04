@@ -2834,6 +2834,8 @@ ${sigImprovs.length ? `
   if (w) { w.document.write(html); w.document.close(); }
   else alert('O browser bloqueou a nova janela. Permite pop-ups para este site.');
 }
+
+function generateReportMD() {
   if (!lastRows.length) { alert('Corre primeiro uma comparação (carrega ficheiros nos dois grupos).'); return; }
 
   const l1 = fw1Label.trim() || 'FW-B — Upgrade';

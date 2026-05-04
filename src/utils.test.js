@@ -137,3 +137,68 @@ describe('computeDelta', () => {
     expect(computeDelta(-90, -100)).toBeCloseTo(10);
   });
 });
+
+// ─── isMetaCol ───────────────────────────────────────────────────────────────
+describe('isMetaCol', () => {
+  it('detects Model column', () => expect(isMetaCol('Model')).toBe(true));
+  it('detects Firmware column', () => expect(isMetaCol('Firmware')).toBe(true));
+  it('detects # Devices (stat) column', () => expect(isMetaCol('# Devices (stat)')).toBe(true));
+  it('rejects unrelated column', () => expect(isMetaCol('SSID name error')).toBe(false));
+  it('is case-sensitive — rejects lowercase model', () => expect(isMetaCol('model')).toBe(false));
+  it('is case-sensitive — rejects uppercase FIRMWARE', () => expect(isMetaCol('FIRMWARE')).toBe(false));
+  it('rejects partial match', () => expect(isMetaCol('Model Name')).toBe(false));
+});
+
+// ─── hasMetaCols ─────────────────────────────────────────────────────────────
+describe('hasMetaCols', () => {
+  it('returns true when all three meta columns present', () => {
+    expect(hasMetaCols(['Timestamp', 'Model', 'Firmware', '# Devices (stat)', 'other'])).toBe(true);
+  });
+  it('returns false when Model is missing', () => {
+    expect(hasMetaCols(['Timestamp', 'Firmware', '# Devices (stat)'])).toBe(false);
+  });
+  it('returns false when Firmware is missing', () => {
+    expect(hasMetaCols(['Timestamp', 'Model', '# Devices (stat)'])).toBe(false);
+  });
+  it('returns false when # Devices (stat) is missing', () => {
+    expect(hasMetaCols(['Timestamp', 'Model', 'Firmware'])).toBe(false);
+  });
+  it('returns false for empty headers', () => {
+    expect(hasMetaCols([])).toBe(false);
+  });
+});
+
+// ─── computePercentile ───────────────────────────────────────────────────────
+describe('computePercentile', () => {
+  it('returns null for empty array', () => expect(computePercentile([], 50)).toBeNull());
+  it('returns the single value for single-element array', () => expect(computePercentile([42], 50)).toBe(42));
+  it('returns minimum for p=0', () => expect(computePercentile([1, 2, 3, 4, 5], 0)).toBe(1));
+  it('returns maximum for p=100', () => expect(computePercentile([1, 2, 3, 4, 5], 100)).toBe(5));
+  it('returns median for p=50 (odd length)', () => expect(computePercentile([1, 2, 3, 4, 5], 50)).toBe(3));
+  it('returns median for p=50 (even length)', () => expect(computePercentile([1, 2, 3, 4], 50)).toBe(2.5));
+  it('interpolates between values for P5', () => {
+    const sorted = [10, 20, 30, 40, 50, 60, 70, 80, 90, 100];
+    expect(computePercentile(sorted, 5)).toBeCloseTo(14.5);
+  });
+  it('computes P99 close to max', () => {
+    const sorted = Array.from({ length: 100 }, (_, i) => i + 1);
+    // idx = 0.99 * 99 = 98.01 → sorted[98]=99, sorted[99]=100 → 99 + 0.01 = 99.01
+    expect(computePercentile(sorted, 99)).toBeCloseTo(99.01);
+  });
+});
+
+// ─── modeOf ──────────────────────────────────────────────────────────────────
+describe('modeOf', () => {
+  it('returns null for empty array', () => expect(modeOf([])).toBeNull());
+  it('returns sole element for single-element array', () => expect(modeOf(['a'])).toBe('a'));
+  it('returns the most frequent value', () => expect(modeOf(['a', 'b', 'a', 'c', 'a'])).toBe('a'));
+  it('returns first most-frequent when tie', () => {
+    // 'a' appears twice, 'b' appears twice — should return 'a' (first in sort order)
+    const result = modeOf(['a', 'b', 'a', 'b']);
+    expect(['a', 'b']).toContain(result);
+  });
+  it('handles identical values', () => expect(modeOf(['x', 'x', 'x'])).toBe('x'));
+  it('handles values from firmware CSV format (comma-separated top hits already split)', () => {
+    expect(modeOf(['fast5670_gpon', 'fast5670_gpon', 'fast5670_gpon'])).toBe('fast5670_gpon');
+  });
+});

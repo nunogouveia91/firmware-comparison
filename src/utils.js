@@ -63,8 +63,47 @@ function computeDelta(a1, a2) {
   return ((a1 - a2) / Math.abs(a2)) * 100;
 }
 
+// ── Metadata column detection ────────────────────────────────────
+// Names of columns that carry identity metadata, not comparison indicators.
+// These are excluded from averages and the indicator list.
+const META_COLS = ['Model', 'Firmware', '# Devices (stat)'];
+
+// Returns true when the header is a metadata column (exact match, case-sensitive).
+function isMetaCol(h) {
+  return META_COLS.includes(h);
+}
+
+// Returns true when a headers array contains all three required metadata columns.
+function hasMetaCols(headers) {
+  return META_COLS.every(c => headers.includes(c));
+}
+
+// ── Statistical helpers ──────────────────────────────────────────
+// Computes a percentile value from a pre-sorted numeric array.
+// p is 0–100. Returns null for empty arrays.
+function computePercentile(sorted, p) {
+  if (!sorted.length) return null;
+  if (sorted.length === 1) return sorted[0];
+  const idx = (p / 100) * (sorted.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (idx - lo);
+}
+
+// Returns the most frequent value in an array of strings, or null if empty.
+function modeOf(arr) {
+  if (!arr.length) return null;
+  const counts = {};
+  arr.forEach(v => { counts[v] = (counts[v] || 0) + 1; });
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+}
+
 // Expõe as funções como globais em ambientes não-browser (ex: Vitest/Node).
 // Em browser, <script src> já coloca top-level functions no scope global (window).
 if (typeof window === 'undefined') {
-  Object.assign(globalThis, { isTs, isEpochMs, parseTs, getTsCol, esc, computeDelta });
+  Object.assign(globalThis, {
+    isTs, isEpochMs, parseTs, getTsCol, esc, computeDelta,
+    META_COLS, isMetaCol, hasMetaCols, computePercentile, modeOf
+  });
 }

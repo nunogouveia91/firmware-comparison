@@ -196,6 +196,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent1)
       </div>
     </div>
     <div id="an-name-preview" style="font-size:.75rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;margin-bottom:14px;font-family:monospace"></div>
+    <div id="an-no-meta-warn" style="display:none;font-size:.76rem;color:#b45309;background:#fef3c7;border:1px solid #fbbf24;border-radius:6px;padding:6px 10px;margin-bottom:10px">⚠️ Metadata não detetada — considera marcar um ficheiro base para identificação automática.</div>
     <div style="font-size:.73rem;color:var(--muted);margin-bottom:14px">Inclui: dados carregados, comparação, período, clusters, limiares e configuração completa.</div>
     <div style="display:flex;gap:8px">
       <button class="btn" onclick="doSaveAnalysis()" style="flex:1">Guardar</button>
@@ -390,6 +391,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent1)
           <input type="file" id="inp-fw2-tab" accept=".csv,.txt" multiple>
         </div>
         <div class="file-list" id="list-fw2-tab"></div>
+        <div id="meta-identity-fw2" style="display:none"></div>
       </div>
       <div class="fw-panel fw1">
         <h2 style="display:flex;align-items:center;gap:6px">🔵
@@ -408,6 +410,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent1)
           <input type="file" id="inp-fw1-tab" accept=".csv,.txt" multiple>
         </div>
         <div class="file-list" id="list-fw1-tab"></div>
+        <div id="meta-identity-fw1" style="display:none"></div>
       </div>
     </div>
   </div>
@@ -454,6 +457,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent1)
   </details>
   <div class="empty" id="compare-empty"><div class="ei">⚖️</div>Carrega ficheiros nos dois grupos para comparar</div>
   <div id="compare-content" style="display:none">
+    <div id="cmp-meta-bar" style="display:none;margin-bottom:12px"></div>
     <div id="cmp-clusters-panel"></div>
     <div id="cmp-hidden-banner"></div>
     <div id="cmp-conda-banner"></div>
@@ -585,7 +589,7 @@ const _idbReady = (async () => {
 const DS_KEY = 'fw-datasets-v1';
 const AN_KEY = 'fw-analyses-v1';
 const ES_CFG_KEY = 'es-config-v1';
-let esCfg = { url: '', apiKey: '' };
+let esCfg = { url: '', apiKey: '', modelField: 'Device.DeviceInfo.ModelName', firmwareField: 'Device.DeviceInfo.SoftwareVersion', deviceIdField: 'deviceId' };
 
 // ═══════════════════════════════════════════════════════════════════
 // CONFIG & PERSISTENCE
@@ -655,6 +659,10 @@ let clIndScrollPos = 0; // saved scroll position for indicator assignment list
 let hiddenRows      = new Set();
 let unitsUpgrade    = null;
 let unitsControl    = null;
+let fw1Meta         = null;  // { model, firmware, units:{p5,p50,p99}, startDate, endDate, durationMs, _overrides:{} }
+let fw2Meta         = null;
+let fw1BaseIdx      = null;  // index into S.fw1[] of the base file (or null)
+let fw2BaseIdx      = null;
 let cmpView         = 'all';     // 'all' | 'fails' | 'improvs' | 'nd' | 'todos'
 let cmpClusterFilter = null;     // null = all clusters; string = filter to that cluster
 let globalDateFrom  = null;      // ms timestamp - applied to ALL views
@@ -782,7 +790,7 @@ function esc(s) {
 function computeAvg(headers, rows) {
   const avg = {};
   headers.forEach(h => {
-    if (isTs(h)) { avg[h] = null; return; }
+    if (isTs(h) || isMetaCol(h)) { avg[h] = null; return; }
     const ns = rows.map(r => r[h] !== null ? Number(r[h]) : NaN).filter(v => !isNaN(v));
     avg[h] = ns.length ? ns.reduce((a, b) => a + b, 0) / ns.length : null;
   });
@@ -793,7 +801,7 @@ function groupAvg(fw) {
   const files = S[fw].filter(f => f.included);
   if (!files.length) return {};
   const allH = new Set();
-  files.forEach(f => f.headers.filter(h => !isTs(h)).forEach(h => allH.add(h)));
+  files.forEach(f => f.headers.filter(h => !isTs(h) && !isMetaCol(h)).forEach(h => allH.add(h)));
 
   // Fast path: no time filter — use cached per-file averages
   if (!globalDateFrom && !globalDateTo) {
@@ -831,7 +839,7 @@ function groupAvg(fw) {
 function getAllIndicators() {
   const s = new Set();
   [...S.fw1, ...S.fw2].forEach(f =>
-    f.headers.filter(h => !isTs(h)).forEach(h => s.add(h))
+    f.headers.filter(h => !isTs(h) && !isMetaCol(h)).forEach(h => s.add(h))
   );
   return [...s].sort((a, b) => a.localeCompare(b));
 }
@@ -859,6 +867,71 @@ function classify(pct) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// METADATA EXTRACTION  (base file identity: model, firmware, dates, units)
+// ═══════════════════════════════════════════════════════════════════
+
+// Extract identity metadata from a file that has Model/Firmware/# Devices (stat) columns.
+function extractMetadata(file) {
+  // Model: split comma-separated top-hits per row, flatten, find mode
+  const modelValues = file.rows.flatMap(r => {
+    const v = r['Model'];
+    if (!v) return [];
+    return v.split(',').map(s => s.trim()).filter(Boolean);
+  });
+  const model = modeOf(modelValues);
+
+  // Firmware: same approach
+  const fwValues = file.rows.flatMap(r => {
+    const v = r['Firmware'];
+    if (!v) return [];
+    return v.split(',').map(s => s.trim()).filter(Boolean);
+  });
+  const firmware = modeOf(fwValues);
+
+  // # Devices: collect numeric values, sort, compute P5/P50/P99
+  const devValues = file.rows
+    .map(r => r['# Devices (stat)'])
+    .filter(v => v !== null && v !== '')
+    .map(Number)
+    .filter(v => !isNaN(v))
+    .sort((a, b) => a - b);
+  const units = devValues.length
+    ? { p5: computePercentile(devValues, 5), p50: computePercentile(devValues, 50), p99: computePercentile(devValues, 99) }
+    : null;
+
+  // Timestamps: find min/max across all rows
+  const tsCol = getTsCol(file);
+  let startDate = null, endDate = null, durationMs = null;
+  if (tsCol) {
+    const tsValues = file.rows.map(r => parseTs(r[tsCol])).filter(v => !isNaN(v));
+    if (tsValues.length) {
+      startDate  = Math.min(...tsValues);
+      endDate    = Math.max(...tsValues);
+      durationMs = endDate - startDate;
+    }
+  }
+
+  return { model, firmware, units, startDate, endDate, durationMs, _overrides: {} };
+}
+
+// Mark file at index idx as the base file for group fw ('fw1' or 'fw2').
+// Extracts metadata and stores it in fw1Meta / fw2Meta.
+// Pass idx=null to clear the base file for that group.
+function setBaseFile(fw, idx) {
+  if (fw === 'fw1') {
+    fw1BaseIdx = idx;
+    fw1Meta    = idx !== null && S.fw1[idx] ? extractMetadata(S.fw1[idx]) : null;
+  } else {
+    fw2BaseIdx = idx;
+    fw2Meta    = idx !== null && S.fw2[idx] ? extractMetadata(S.fw2[idx]) : null;
+  }
+  renderLists();
+  renderMetaBar();
+  renderMetaIdentityPanels();
+  updateFWHeaders();
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // FILE LOADING
 // ═══════════════════════════════════════════════════════════════════
 function loadFiles(files, fw) {
@@ -868,6 +941,14 @@ function loadFiles(files, fw) {
       const { headers, rows } = parseCSV(e.target.result);
       const averages = computeAvg(headers, rows);
       S[fw].push({ name: file.name, headers, rows, averages, included: true });
+      // Auto-suggest base file if not yet set and this file has meta columns
+      const baseIdxVar = fw === 'fw1' ? 'fw1BaseIdx' : 'fw2BaseIdx';
+      const currentBase = fw === 'fw1' ? fw1BaseIdx : fw2BaseIdx;
+      if (currentBase === null && hasMetaCols(headers)) {
+        const newIdx = S[fw].length - 1;
+        if (fw === 'fw1') { fw1BaseIdx = newIdx; fw1Meta = extractMetadata(S.fw1[newIdx]); }
+        else              { fw2BaseIdx = newIdx; fw2Meta = extractMetadata(S.fw2[newIdx]); }
+      }
       renderLists();
       refreshAll();
     };
@@ -877,6 +958,16 @@ function loadFiles(files, fw) {
 
 function removeFile(fw, idx) {
   S[fw].splice(idx, 1);
+  // If the removed file was the base, clear base selection
+  const curBase = fw === 'fw1' ? fw1BaseIdx : fw2BaseIdx;
+  if (curBase === idx) {
+    if (fw === 'fw1') { fw1BaseIdx = null; fw1Meta = null; }
+    else              { fw2BaseIdx = null; fw2Meta = null; }
+  } else if (curBase !== null && curBase > idx) {
+    // Shift base index down after removal
+    if (fw === 'fw1') fw1BaseIdx = curBase - 1;
+    else              fw2BaseIdx = curBase - 1;
+  }
   renderLists();
   refreshAll();
 }
@@ -888,22 +979,34 @@ function toggleInclude(fw, idx, val) {
 
 function renderLists() {
   ['fw1', 'fw2'].forEach(fw => {
-    const html = S[fw].map((f, idx) =>
-      `<div class="file-item">
+    const baseIdx = fw === 'fw1' ? fw1BaseIdx : fw2BaseIdx;
+    const html = S[fw].map((f, idx) => {
+      const isBase   = idx === baseIdx;
+      const hasMeta  = hasMetaCols(f.headers);
+      const baseBadge = hasMeta
+        ? `<button title="${isBase ? 'Remover como ficheiro base' : 'Marcar como ficheiro base (Identidade)'}"
+            onclick="setBaseFile('${fw}', ${isBase ? null : idx})"
+            style="background:none;border:none;cursor:pointer;font-size:.95rem;padding:0 2px;opacity:${isBase ? '1' : '0.35'};line-height:1" aria-label="base">
+            ${isBase ? '⭐' : '☆'}
+          </button>`
+        : '<span style="width:20px;display:inline-block"></span>';
+      return `<div class="file-item"${isBase ? ' style="background:var(--surface2);border-radius:6px"' : ''}>
+        ${baseBadge}
         <input type="checkbox" title="Incluir na comparação" ${f.included ? 'checked' : ''}
           onchange="toggleInclude('${fw}',${idx},this.checked)">
-        <span class="fname" title="${esc(f.name)}">📄 ${esc(f.name)}</span>
+        <span class="fname" title="${esc(f.name)}">${isBase ? '📋' : '📄'} ${esc(f.name)}</span>
         <span class="frows">${f.rows.length}L</span>
         <button class="view-btn" onclick="viewFile('${fw}',${idx})">Ver</button>
         <button class="remove" onclick="removeFile('${fw}',${idx})" title="Remover">✕</button>
-      </div>`
-    ).join('');
+      </div>`;
+    }).join('');
     const el = document.getElementById('list-' + fw);
     if (el) el.innerHTML = html;
     const elTab = document.getElementById('list-' + fw + '-tab');
     if (elTab) elTab.innerHTML = html;
   });
   updateUploadSummary();
+  renderMetaIdentityPanels();
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -1131,9 +1234,7 @@ function refreshAll() {
   updateGlobalDateInfo();
 
   if (hasComp) runComparison();
-
-
-}
+  renderMetaBar();
 
 function show(id, vis) {
   const el = document.getElementById(id);
@@ -1283,14 +1384,148 @@ function runComparison() {
 // renderCompareFiltered kept as alias for backwards compatibility
 function renderCompareFiltered() { renderCmpView(); }
 
+// ── Metadata helpers ──────────────────────────────────────────────
+function fmtDate(ms) {
+  if (!ms) return '—';
+  return new Date(ms).toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+function fmtDuration(ms) {
+  if (!ms) return '—';
+  const days  = Math.round(ms / 86400000);
+  const hours = Math.round(ms / 3600000);
+  return days >= 1 ? days + 'd' : hours + 'h';
+}
+
+function fmtUnits(units) {
+  if (!units) return '—';
+  const fmt = n => (n != null ? Math.round(n).toLocaleString('pt-PT') : '—');
+  return `P50: ${fmt(units.p50)} <span style="color:var(--muted);font-size:.78rem">(P5: ${fmt(units.p5)} · P99: ${fmt(units.p99)})</span>`;
+}
+
+function fmtUnitsPlain(units) {
+  if (!units) return '—';
+  const fmt = n => (n != null ? Math.round(n).toLocaleString('pt-PT') : '—');
+  return `P50: ${fmt(units.p50)} (P5: ${fmt(units.p5)} · P99: ${fmt(units.p99)})`;
+}
+
+// Renders the metadata identity bar above the Diferenças table.
+function renderMetaBar() {
+  const el = document.getElementById('cmp-meta-bar');
+  if (!el) return;
+  if (!fw1Meta && !fw2Meta) { el.style.display = 'none'; el.innerHTML = ''; return; }
+
+  function metaCard(meta, label, accent) {
+    if (!meta) return '';
+    const ov = meta._overrides || {};
+    return `<div style="flex:1;min-width:220px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 14px">
+      <div style="font-size:.75rem;font-weight:700;color:${accent};margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em">${label}</div>
+      <div style="display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:.8rem">
+        <span style="color:var(--muted)">Modelo</span>
+        <span style="font-weight:600">${esc(ov.model ?? meta.model ?? '—')}</span>
+        <span style="color:var(--muted)">Firmware</span>
+        <span style="font-weight:600;font-family:monospace;font-size:.78rem">${esc(ov.firmware ?? meta.firmware ?? '—')}</span>
+        <span style="color:var(--muted)">Período</span>
+        <span>${fmtDate(meta.startDate)} → ${fmtDate(meta.endDate)} <span style="color:var(--muted)">(${fmtDuration(meta.durationMs)})</span></span>
+        <span style="color:var(--muted)">Unidades</span>
+        <span>${fmtUnits(ov.units ?? meta.units)}</span>
+      </div>
+    </div>`;
+  }
+
+  const l2 = fw2Label.trim() || 'FW-A — Control';
+  const l1 = fw1Label.trim() || 'FW-B — Upgrade';
+  el.innerHTML = `<div style="display:flex;gap:10px;flex-wrap:wrap">
+    ${metaCard(fw2Meta, '🟠 ' + l2, 'var(--accent2)')}
+    ${metaCard(fw1Meta, '🔵 ' + l1, 'var(--accent1)')}
+  </div>`;
+  el.style.display = '';
+}
+
+// Renders the editable identity panel below file lists in Carregar Dados.
+function renderMetaIdentityPanels() {
+  ['fw1', 'fw2'].forEach(fw => {
+    const el = document.getElementById('meta-identity-' + fw);
+    if (!el) return;
+    const meta    = fw === 'fw1' ? fw1Meta : fw2Meta;
+    const baseIdx = fw === 'fw1' ? fw1BaseIdx : fw2BaseIdx;
+    const accent  = fw === 'fw1' ? 'var(--accent1)' : 'var(--accent2)';
+    if (!meta) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    const ov = meta._overrides || {};
+    const model    = ov.model    ?? meta.model    ?? '';
+    const firmware = ov.firmware ?? meta.firmware ?? '';
+    const p50 = ov.units?.p50 ?? meta.units?.p50;
+    const p5  = ov.units?.p5  ?? meta.units?.p5;
+    const p99 = ov.units?.p99 ?? meta.units?.p99;
+    const fmt = n => n != null ? Math.round(n) : '';
+
+    el.innerHTML = `<div style="margin-top:10px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px">
+      <div style="font-size:.74rem;font-weight:700;color:${accent};margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">
+        📋 Identidade do Firmware
+        <span style="font-weight:400;text-transform:none;color:var(--muted);font-size:.7rem;margin-left:6px">editável — extraído do ficheiro base</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px">
+        <div>
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:3px">Modelo</div>
+          <input type="text" value="${esc(model)}" placeholder="auto"
+            style="width:100%;font-size:.82rem;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:4px 8px"
+            oninput="setMetaOverride('${fw}','model',this.value)">
+        </div>
+        <div>
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:3px">Firmware</div>
+          <input type="text" value="${esc(firmware)}" placeholder="auto"
+            style="width:100%;font-size:.82rem;font-family:monospace;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:4px 8px"
+            oninput="setMetaOverride('${fw}','firmware',this.value)">
+        </div>
+        <div>
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:3px">Período</div>
+          <div style="font-size:.8rem;color:var(--text);padding:4px 2px">${fmtDate(meta.startDate)} → ${fmtDate(meta.endDate)} <span style="color:var(--muted)">(${fmtDuration(meta.durationMs)})</span></div>
+        </div>
+        <div>
+          <div style="font-size:.72rem;color:var(--muted);margin-bottom:3px">Unidades P50 / P5 / P99</div>
+          <div style="display:flex;gap:4px">
+            <input type="number" value="${fmt(p50)}" placeholder="P50" min="0"
+              style="width:60px;font-size:.78rem;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:4px 6px"
+              oninput="setMetaUnitsOverride('${fw}','p50',this.value)">
+            <input type="number" value="${fmt(p5)}" placeholder="P5" min="0"
+              style="width:55px;font-size:.78rem;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:4px 6px"
+              oninput="setMetaUnitsOverride('${fw}','p5',this.value)">
+            <input type="number" value="${fmt(p99)}" placeholder="P99" min="0"
+              style="width:60px;font-size:.78rem;background:var(--surface);border:1px solid var(--border);border-radius:5px;color:var(--text);padding:4px 6px"
+              oninput="setMetaUnitsOverride('${fw}','p99',this.value)">
+          </div>
+        </div>
+      </div>
+    </div>`;
+    el.style.display = '';
+  });
+}
+
+function setMetaOverride(fw, field, value) {
+  const meta = fw === 'fw1' ? fw1Meta : fw2Meta;
+  if (!meta) return;
+  meta._overrides[field] = value;
+  renderMetaBar();
+  updateFWHeaders();
+}
+
+function setMetaUnitsOverride(fw, subfield, value) {
+  const meta = fw === 'fw1' ? fw1Meta : fw2Meta;
+  if (!meta) return;
+  if (!meta._overrides.units) meta._overrides.units = {};
+  meta._overrides.units[subfield] = value ? Number(value) : null;
+  renderMetaBar();
+}
+
 function updateFWHeaders() {
   const l1 = fw1Label.trim() || 'FW-B — Upgrade';
   const l2 = fw2Label.trim() || 'FW-A — Control';
+  const fw1fw = (fw1Meta?._overrides?.firmware ?? fw1Meta?.firmware);
+  const fw2fw = (fw2Meta?._overrides?.firmware ?? fw2Meta?.firmware);
   const t1 = document.getElementById('cmp-th-fw1');
   const t2 = document.getElementById('cmp-th-fw2');
-  if (t1) t1.textContent = l1;
-  if (t2) t2.textContent = l2;
-  // keep FW-A always left of FW-B in the th elements (order set in HTML)
+  if (t1) t1.textContent = fw1fw ? `${l1} (${fw1fw})` : l1;
+  if (t2) t2.textContent = fw2fw ? `${l2} (${fw2fw})` : l2;
 }
 
 // ── View toggle ──
@@ -2164,6 +2399,23 @@ function renderSettings() {
           <label style="font-size:.78rem;color:var(--muted);display:block;margin-bottom:3px">API Key</label>
           <input type="password" id="es-cfg-key" placeholder="Base64 API key" value="${esc(esCfg.apiKey)}" style="width:100%">
         </div>
+        <details style="margin-top:4px">
+          <summary style="font-size:.76rem;color:var(--muted);cursor:pointer">Campos de identidade (Model / Firmware / Device ID)</summary>
+          <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+            <div>
+              <label style="font-size:.76rem;color:var(--muted);display:block;margin-bottom:3px">Campo Modelo</label>
+              <input type="text" id="es-cfg-model-field" value="${esc(esCfg.modelField || 'Device.DeviceInfo.ModelName')}" style="width:100%;font-size:.8rem;font-family:monospace">
+            </div>
+            <div>
+              <label style="font-size:.76rem;color:var(--muted);display:block;margin-bottom:3px">Campo Firmware</label>
+              <input type="text" id="es-cfg-fw-field" value="${esc(esCfg.firmwareField || 'Device.DeviceInfo.SoftwareVersion')}" style="width:100%;font-size:.8rem;font-family:monospace">
+            </div>
+            <div>
+              <label style="font-size:.76rem;color:var(--muted);display:block;margin-bottom:3px">Campo Device ID (sem .keyword)</label>
+              <input type="text" id="es-cfg-device-field" value="${esc(esCfg.deviceIdField || 'deviceId')}" style="width:100%;font-size:.8rem;font-family:monospace">
+            </div>
+          </div>
+        </details>
       </div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:12px">
         <button class="btn" onclick="saveEsCfg()">💾 Guardar</button>
@@ -2492,8 +2744,18 @@ th{background:#1a2040;color:#fff;padding:7px 8px;text-align:left;font-size:11px}
 <h1>📊 Relatório de Comparação de Firmware</h1>
 <div class="meta">
   <span>📅 ${new Date().toLocaleString('pt-PT')}</span>
-  <span>🔵 <strong>${l1}:</strong> ${fw1n}${unitsUpgrade!=null?' · '+unitsUpgrade.toLocaleString()+' uds':''}</span>
-  <span>🟠 <strong>${l2}:</strong> ${fw2n}${unitsControl!=null?' · '+unitsControl.toLocaleString()+' uds':''}</span>
+  ${fw2Meta ? `<span>🟠 <strong>${esc(l2)}</strong>
+    · ${esc(fw2Meta._overrides?.model ?? fw2Meta.model ?? '—')}
+    · <code style="font-size:9px">${esc(fw2Meta._overrides?.firmware ?? fw2Meta.firmware ?? '—')}</code>
+    · ${fmtDate(fw2Meta.startDate)} → ${fmtDate(fw2Meta.endDate)} (${fmtDuration(fw2Meta.durationMs)})
+    · ${fmtUnitsPlain(fw2Meta._overrides?.units ?? fw2Meta.units)}</span>`
+  : `<span>🟠 <strong>${esc(l2)}:</strong> ${esc(fw2n)}${unitsControl!=null?' · '+unitsControl.toLocaleString()+' uds':''}</span>`}
+  ${fw1Meta ? `<span>🔵 <strong>${esc(l1)}</strong>
+    · ${esc(fw1Meta._overrides?.model ?? fw1Meta.model ?? '—')}
+    · <code style="font-size:9px">${esc(fw1Meta._overrides?.firmware ?? fw1Meta.firmware ?? '—')}</code>
+    · ${fmtDate(fw1Meta.startDate)} → ${fmtDate(fw1Meta.endDate)} (${fmtDuration(fw1Meta.durationMs)})
+    · ${fmtUnitsPlain(fw1Meta._overrides?.units ?? fw1Meta.units)}</span>`
+  : `<span>🔵 <strong>${esc(l1)}:</strong> ${esc(fw1n)}${unitsUpgrade!=null?' · '+unitsUpgrade.toLocaleString()+' uds':''}</span>`}
 </div>
 
 <button onclick="window.print()"
@@ -2711,10 +2973,29 @@ function generateReportMD() {
   lines.push(``);
   lines.push(`## Contexto`);
   lines.push(``);
-  lines.push(`| | Grupo | Ficheiros | Unidades |`);
-  lines.push(`|---|---|---|---|`);
-  lines.push(`| **${l1}** | Upgrade | ${fw1n} | ${unitsUpgrade != null ? unitsUpgrade.toLocaleString() : '—'} |`);
-  lines.push(`| **${l2}** | Control | ${fw2n} | ${unitsControl != null ? unitsControl.toLocaleString() : '—'} |`);
+  if (fw1Meta || fw2Meta) {
+    lines.push(`| | Grupo | Modelo | Firmware | Período | Duração | Unidades (P50) |`);
+    lines.push(`|---|---|---|---|---|---|---|`);
+    const fmtDatePlain = ms => ms ? new Date(ms).toLocaleDateString('pt-PT') : '—';
+    const fmtU = u => u?.p50 != null ? Math.round(u.p50).toLocaleString('pt-PT') : '—';
+    if (fw2Meta) {
+      const m = fw2Meta; const ov = m._overrides || {};
+      lines.push(`| **${l2}** | Control | ${ov.model ?? m.model ?? '—'} | \`${ov.firmware ?? m.firmware ?? '—'}\` | ${fmtDatePlain(m.startDate)} → ${fmtDatePlain(m.endDate)} | ${fmtDuration(m.durationMs)} | ${fmtU(ov.units ?? m.units)} |`);
+    } else {
+      lines.push(`| **${l2}** | Control | — | — | — | — | ${unitsControl != null ? unitsControl.toLocaleString() : '—'} |`);
+    }
+    if (fw1Meta) {
+      const m = fw1Meta; const ov = m._overrides || {};
+      lines.push(`| **${l1}** | Upgrade | ${ov.model ?? m.model ?? '—'} | \`${ov.firmware ?? m.firmware ?? '—'}\` | ${fmtDatePlain(m.startDate)} → ${fmtDatePlain(m.endDate)} | ${fmtDuration(m.durationMs)} | ${fmtU(ov.units ?? m.units)} |`);
+    } else {
+      lines.push(`| **${l1}** | Upgrade | — | — | — | — | ${unitsUpgrade != null ? unitsUpgrade.toLocaleString() : '—'} |`);
+    }
+  } else {
+    lines.push(`| | Grupo | Ficheiros | Unidades |`);
+    lines.push(`|---|---|---|---|`);
+    lines.push(`| **${l1}** | Upgrade | ${fw1n} | ${unitsUpgrade != null ? unitsUpgrade.toLocaleString() : '—'} |`);
+    lines.push(`| **${l2}** | Control | ${fw2n} | ${unitsControl != null ? unitsControl.toLocaleString() : '—'} |`);
+  }
   lines.push(``);
 
   const md = lines.join('\n');
@@ -3341,13 +3622,73 @@ async function loadEsCfg() {
 }
 
 async function saveEsCfg() {
-  esCfg.url = (document.getElementById('es-cfg-url')?.value || '').trim();
-  esCfg.apiKey = (document.getElementById('es-cfg-key')?.value || '').trim();
+  esCfg.url           = (document.getElementById('es-cfg-url')?.value || '').trim();
+  esCfg.apiKey        = (document.getElementById('es-cfg-key')?.value || '').trim();
+  esCfg.modelField    = (document.getElementById('es-cfg-model-field')?.value || '').trim() || 'Device.DeviceInfo.ModelName';
+  esCfg.firmwareField = (document.getElementById('es-cfg-fw-field')?.value || '').trim() || 'Device.DeviceInfo.SoftwareVersion';
+  esCfg.deviceIdField = (document.getElementById('es-cfg-device-field')?.value || '').trim() || 'deviceId';
   try {
-    await IDB.set(ES_CFG_KEY, { url: esCfg.url, apiKey: esCfg.apiKey });
+    await IDB.set(ES_CFG_KEY, { url: esCfg.url, apiKey: esCfg.apiKey, modelField: esCfg.modelField, firmwareField: esCfg.firmwareField, deviceIdField: esCfg.deviceIdField });
     const st = document.getElementById('es-cfg-status');
     if (st) { st.textContent = '✓ Guardado'; setTimeout(() => { if (st) st.textContent = ''; }, 2000); }
   } catch(e) { alert('Erro ao guardar config ES: ' + e.message); }
+}
+
+// Builds a separate ES query to extract identity metadata (model, firmware, device count).
+// Uses top_hits for model/firmware (to capture the comma-joined top-2 pattern),
+// and a percentiles aggregation on hourly device cardinality for units.
+function buildESMetaQuery(deviceIds, fromIso, toIso, modelField, firmwareField, deviceIdField) {
+  const deviceFilter = deviceIds.length > 0
+    ? { terms: { [deviceIdField]: deviceIds } }
+    : { match_all: {} };
+  return {
+    size: 0,
+    query: { bool: { filter: [deviceFilter, { range: { '@timestamp': { gte: fromIso, lte: toIso } } }] } },
+    aggs: {
+      by_hour: {
+        date_histogram: { field: '@timestamp', calendar_interval: '1h', min_doc_count: 1 },
+        aggs: {
+          top_model:    { top_hits: { size: 2, _source: { includes: [modelField] } } },
+          top_firmware: { top_hits: { size: 2, _source: { includes: [firmwareField] } } },
+          devices:      { cardinality: { field: deviceIdField + '.keyword' } }
+        }
+      }
+    }
+  };
+}
+
+// Parses the ES metadata query response into a metadata object compatible with fw1Meta/fw2Meta.
+function parseESMetaResponse(data, modelField, firmwareField, fromIso, toIso) {
+  const buckets = data?.aggregations?.by_hour?.buckets || [];
+
+  // Collect model and firmware values across all hourly buckets
+  const modelValues   = [];
+  const firmwareValues = [];
+  const deviceCounts  = [];
+
+  buckets.forEach(b => {
+    (b.top_model?.hits?.hits   || []).forEach(h => { const v = h._source?.[modelField];   if (v) modelValues.push(v); });
+    (b.top_firmware?.hits?.hits || []).forEach(h => { const v = h._source?.[firmwareField]; if (v) firmwareValues.push(v); });
+    if (b.devices?.value != null) deviceCounts.push(b.devices.value);
+  });
+
+  // Split comma-separated top-hits and find mode
+  const splitMode = arr => modeOf(arr.flatMap(v => String(v).split(',').map(s => s.trim()).filter(Boolean)));
+  const model    = splitMode(modelValues);
+  const firmware = splitMode(firmwareValues);
+
+  // Compute units percentiles from sorted device counts
+  const sortedCounts = [...deviceCounts].sort((a, b) => a - b);
+  const units = sortedCounts.length
+    ? { p5: computePercentile(sortedCounts, 5), p50: computePercentile(sortedCounts, 50), p99: computePercentile(sortedCounts, 99) }
+    : null;
+
+  // Date range from query params directly
+  const startDate  = fromIso ? new Date(fromIso).getTime() : null;
+  const endDate    = toIso   ? new Date(toIso).getTime()   : null;
+  const durationMs = (startDate && endDate) ? endDate - startDate : null;
+
+  return { model, firmware, units, startDate, endDate, durationMs, _overrides: {} };
 }
 
 function buildESAggQuery(deviceIds, fromIso, toIso) {
@@ -3549,6 +3890,33 @@ async function loadFromES() {
     if (lbl1) lbl1.value = labelB;
     document.getElementById('fw2-label').value = labelA;
     document.getElementById('fw1-label').value = labelB;
+    fw1BaseIdx = null; fw1Meta = null;
+    fw2BaseIdx = null; fw2Meta = null;
+    // Fire metadata queries for both periods (best-effort, non-blocking)
+    statusEl.textContent = '⏳ Metadata…';
+    const mField = esCfg.modelField    || 'Device.DeviceInfo.ModelName';
+    const fField = esCfg.firmwareField || 'Device.DeviceInfo.SoftwareVersion';
+    const dField = (esCfg.deviceIdField || 'deviceId') + '.keyword';
+    async function fetchMeta(from, to, fw) {
+      try {
+        const fromIso = new Date(from).toISOString();
+        const toIso   = new Date(to).toISOString();
+        const body = buildESMetaQuery(deviceIds, fromIso, toIso, mField, fField, dField);
+        const esPath = indexPattern + '/_search';
+        let resp;
+        if (useProxy) {
+          resp = await fetch(proxyUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-ES-Url': baseUrl, 'X-ES-ApiKey': esCfg.apiKey, 'X-ES-Path': esPath }, body: JSON.stringify(body) });
+        } else {
+          resp = await fetch(baseUrl + '/' + esPath, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'ApiKey ' + esCfg.apiKey }, body: JSON.stringify(body) });
+        }
+        if (!resp.ok) return;
+        const data = await resp.json();
+        if (!data.aggregations) return;
+        const meta = parseESMetaResponse(data, mField, fField, new Date(from).toISOString(), new Date(to).toISOString());
+        if (fw === 'fw1') fw1Meta = meta; else fw2Meta = meta;
+      } catch(_) { /* metadata is best-effort */ }
+    }
+    await Promise.all([fetchMeta(fromA, toA, 'fw2'), fetchMeta(fromB, toB, 'fw1')]);
     renderLists();
     refreshAll();
     statusEl.textContent = '✓ Carregado — ' + fileA.rows.length + 'h (A) · ' + fileB.rows.length + 'h (B)';
@@ -3615,6 +3983,17 @@ function loadZip(file) {
     });
     return Promise.all(tasks).then(() => ({ countA, countB }));
   }).then(({ countA, countB }) => {
+    // Auto-suggest base files for each group
+    ['fw1', 'fw2'].forEach(fw => {
+      const curBase = fw === 'fw1' ? fw1BaseIdx : fw2BaseIdx;
+      if (curBase === null) {
+        const idx = S[fw].findIndex(f => hasMetaCols(f.headers));
+        if (idx !== -1) {
+          if (fw === 'fw1') { fw1BaseIdx = idx; fw1Meta = extractMetadata(S.fw1[idx]); }
+          else              { fw2BaseIdx = idx; fw2Meta = extractMetadata(S.fw2[idx]); }
+        }
+      }
+    });
     renderLists();
     refreshAll();
     statusEl.textContent = `✅ Carregados: ${countA} ficheiro(s) FW-A, ${countB} ficheiro(s) FW-B`;
@@ -3937,11 +4316,21 @@ function updateAnNamePreview() {
 }
 
 function showSaveAnalysisDialog() {
-  document.getElementById('an-modelo').value = '';
-  document.getElementById('an-fw-control').value = '';
-  document.getElementById('an-fw-upgrade').value = '';
+  // Auto-fill from metadata if available
+  const modeloEl    = document.getElementById('an-modelo');
+  const fwCtrlEl    = document.getElementById('an-fw-control');
+  const fwUpgrEl    = document.getElementById('an-fw-upgrade');
+  const metaModel   = fw1Meta?._overrides?.model    ?? fw1Meta?.model    ?? fw2Meta?._overrides?.model    ?? fw2Meta?.model    ?? '';
+  const metaFwCtrl  = fw2Meta?._overrides?.firmware ?? fw2Meta?.firmware ?? '';
+  const metaFwUpgr  = fw1Meta?._overrides?.firmware ?? fw1Meta?.firmware ?? '';
+  if (modeloEl)   modeloEl.value   = metaModel;
+  if (fwCtrlEl)   fwCtrlEl.value   = metaFwCtrl;
+  if (fwUpgrEl)   fwUpgrEl.value   = metaFwUpgr;
   document.querySelector('input[name="an-piloto"][value="alfas"]').checked = true;
   updateAnNamePreview();
+  // Show warning if no metadata available
+  const warnEl = document.getElementById('an-no-meta-warn');
+  if (warnEl) warnEl.style.display = (!fw1Meta && !fw2Meta) ? '' : 'none';
   document.getElementById('save-analysis-overlay').style.display = 'flex';
 }
 
@@ -3964,7 +4353,10 @@ async function doSaveAnalysis() {
       unitsUpgrade, unitsControl,
       globalDateFrom, globalDateTo,
       hiddenRows: [...hiddenRows],
-      cmpView
+      cmpView,
+      fw1Meta: fw1Meta ? JSON.parse(JSON.stringify(fw1Meta)) : null,
+      fw2Meta: fw2Meta ? JSON.parse(JSON.stringify(fw2Meta)) : null,
+      fw1BaseIdx, fw2BaseIdx
     }
   });
   await IDB.set(AN_KEY, list);
@@ -3993,6 +4385,10 @@ async function loadAnalysis(idx) {
   globalDateTo   = st.globalDateTo   ?? null;
   hiddenRows     = new Set(st.hiddenRows || []);
   cmpView        = st.cmpView        ?? 'all';
+  fw1Meta        = st.fw1Meta        ?? null;
+  fw2Meta        = st.fw2Meta        ?? null;
+  fw1BaseIdx     = st.fw1BaseIdx     ?? null;
+  fw2BaseIdx     = st.fw2BaseIdx     ?? null;
   // sync UI inputs
   const uuEl = document.getElementById('units-upgrade');
   const ucEl = document.getElementById('units-control');

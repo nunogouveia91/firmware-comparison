@@ -9,6 +9,8 @@ Próximos desenvolvimentos, melhorias e ideias para o futuro da app.
 ### Melhorias imediatas
 
 - [ ] **Relatório em Markdown** — exportar o relatório gerado com formatação Markdown em vez de texto simples
+  - [ ] Incluir modelo e firmware (FW-A e FW-B) no cabeçalho do relatório para identificação clara
+  - [ ] Indicar para cada indicador apresentado se é do tipo média (`avg`) ou acumulação (`acc`)
 - [ ] **Integração Kibana** — melhorar a interação com os endpoints do Kibana (colaboração com Martins)
 
 ### Novos casos de uso

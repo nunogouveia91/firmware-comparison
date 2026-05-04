@@ -161,8 +161,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent1)
     <button class="tab-btn" data-tab="settings">⚙️ Definições</button>
   </div>
   <div style="display:flex;gap:8px;flex-shrink:0;align-items:center">
-    <button class="btn" onclick="generateReport()" style="padding:5px 14px;font-size:.8rem;white-space:nowrap">&#128196; Relatório</button>
-    <button class="btn" onclick="generateReportMD()" style="padding:5px 14px;font-size:.8rem;white-space:nowrap" title="Descarregar relatório em Markdown (.md)">&#128196; Relatório MD</button>
+    <button class="btn" onclick="generateReportMD()" style="padding:5px 14px;font-size:.8rem;white-space:nowrap">&#128196; Relatório MD</button>
   </div>
 </header>
 
@@ -2570,9 +2569,9 @@ document.addEventListener('change', e => {
 });
 
 // ═══════════════════════════════════════════════════════════════════
-// REPORT
+// REPORT — MARKDOWN
 // ═══════════════════════════════════════════════════════════════════
-function generateReport() {
+function generateReportMD() {
   if (!lastRows.length) { alert('Corre primeiro uma comparação (carrega ficheiros nos dois grupos).'); return; }
 
   const l1 = fw1Label.trim() || 'FW-B — Upgrade';
@@ -2835,11 +2834,6 @@ ${sigImprovs.length ? `
   if (w) { w.document.write(html); w.document.close(); }
   else alert('O browser bloqueou a nova janela. Permite pop-ups para este site.');
 }
-
-// ═══════════════════════════════════════════════════════════════════
-// REPORT — MARKDOWN
-// ═══════════════════════════════════════════════════════════════════
-function generateReportMD() {
   if (!lastRows.length) { alert('Corre primeiro uma comparação (carrega ficheiros nos dois grupos).'); return; }
 
   const l1 = fw1Label.trim() || 'FW-B — Upgrade';

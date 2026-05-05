@@ -284,18 +284,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent1)
 <!-- ── UPLOAD TAB ───────────────────────────────────────────── -->
 <div class="tab-panel active" id="tab-upload">
   <div style="margin-bottom:14px">
-    <!-- units + action buttons row -->
+    <!-- action buttons row -->
     <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px">
-        <span style="color:var(--accent2);font-size:.85rem;font-weight:700">🟠 Control / Antes:</span>
-        <input type="number" id="units-control-tab" min="1" style="width:80px;font-size:.9rem;font-weight:600" placeholder="uds"
-          oninput="unitsControl=this.value?+this.value:null;document.getElementById('units-control').value=this.value;updateUploadSummary();recomputeCondA()">
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center;gap:7px">
-        <span style="color:var(--accent1);font-size:.85rem;font-weight:700">🔵 Upgrade / Depois:</span>
-        <input type="number" id="units-upgrade-tab" min="1" style="width:80px;font-size:.9rem;font-weight:600" placeholder="uds"
-          oninput="unitsUpgrade=this.value?+this.value:null;document.getElementById('units-upgrade').value=this.value;updateUploadSummary();recomputeCondA()">
-      </div>
       <div style="flex:1"></div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
         <button onclick="showSavedDataPanel('analyses')" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">🗄️ Dados Guardados</button>

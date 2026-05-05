@@ -284,19 +284,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent1)
 <!-- ── UPLOAD TAB ───────────────────────────────────────────── -->
 <div class="tab-panel active" id="tab-upload">
   <div style="margin-bottom:14px">
-    <!-- action buttons row -->
+    <!-- mode toggle + action buttons row -->
     <div style="display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
-      <div style="flex:1"></div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
-        <button onclick="showSavedDataPanel('analyses')" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">🗄️ Dados Guardados</button>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
-        <button onclick="showSaveAnalysisDialog()" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">💾 Guardar Análise</button>
-      </div>
-    </div>
-    <!-- mode toggle -->
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <span style="font-size:.8rem;color:var(--muted);font-weight:600">Modo de carregamento:</span>
+      <span style="font-size:.8rem;color:var(--muted);font-weight:600;white-space:nowrap">Modo de carregamento:</span>
       <div id="upload-mode-toggle" style="display:flex;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px;gap:2px">
         <button id="mode-btn-dual" onclick="setUploadMode('dual')"
           style="border:none;border-radius:16px;padding:4px 14px;font-size:.78rem;cursor:pointer;font-weight:600;background:var(--accent1);color:#fff;transition:all .15s">📁 Dois Grupos</button>
@@ -304,6 +294,13 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent1)
           style="border:none;border-radius:16px;padding:4px 14px;font-size:.78rem;cursor:pointer;font-weight:600;background:transparent;color:var(--muted);transition:all .15s">🗜️ ZIP</button>
         <button id="mode-btn-es" onclick="setUploadMode('es')"
           style="border:none;border-radius:16px;padding:4px 14px;font-size:.78rem;cursor:pointer;font-weight:600;background:transparent;color:var(--muted);transition:all .15s">🔌 ES</button>
+      </div>
+      <div style="flex:1"></div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
+        <button onclick="showSavedDataPanel('analyses')" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">🗄️ Dados Guardados</button>
+      </div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 12px;display:flex;align-items:center">
+        <button onclick="showSaveAnalysisDialog()" style="background:none;border:none;color:var(--text);font-size:.85rem;cursor:pointer;white-space:nowrap;padding:0">💾 Guardar Análise</button>
       </div>
     </div>
 
